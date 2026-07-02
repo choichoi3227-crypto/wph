@@ -50,20 +50,14 @@ deploy_frontend() {
 }
 
 deploy_worker() {
-  local SITE_ID="${SITE_ID:-}"
-  [[ -z "$SITE_ID" ]] && die "export SITE_ID=my-blog 필요"
-  info "━━━ site-worker ($SITE_ID) — Workers 10개 ━━━"
+  info "━━━ [4/4] packages/site-worker 배포 (전체 사이트 공용, 1회) ━━━"
   cd "$ROOT/packages/site-worker"
   npm ci --silent
-  for i in $(seq 0 9); do
-    WNAME="${SITE_ID}-w${i}"
-    info "  $WNAME"
-    wrangler deploy --name "$WNAME" \
-      --var "SITE_ID:${SITE_ID}" --var "WORKER_INDEX:${i}"
-  done
-  ok "Workers 10개 완료"
-  warn "공개 라우트는 대시보드에서 직접: ${WNAME%-w*}-w0 → Settings → Domains & Routes → Route 추가"
-  warn "  라우트: ${SITE_ID}.cloud-press.co.kr/*  (zone: cloud-press.co.kr)"
+  npx tsc --noEmit && ok "타입체크 통과"
+  wrangler deploy
+  ok "site-worker 완료 → *.cloud-press.co.kr (와일드카드 라우트)"
+  warn "최초 1회 확인 필요: *.cloud-press.co.kr DNS 레코드가 zone에 프록시됨 상태로 있는지"
+  warn "  (Cloudflare 대시보드 → cloud-press.co.kr → DNS → *.cloud-press.co.kr A/CNAME, 프록시 on)"
 }
 
 setup_infra() {
@@ -90,10 +84,8 @@ wrangler secret put PAYPAL_CLIENT_ID       --name cloudpress-api
 wrangler secret put PAYPAL_CLIENT_SECRET   --name cloudpress-api
 wrangler secret put INTERNAL_SHARED_SECRET --name cloudpress-api
 
-# packages/site-worker (호스팅당 10개)
-for i in $(seq 0 9); do
-  wrangler secret put STORAGE_API_KEY --name ${SITE_ID}-w${i}
-done
+# packages/site-worker (사이트 전체 공용 Worker 1개)
+wrangler secret put INTERNAL_SHARED_SECRET --name cloudpress-site-worker
 EOF
 }
 
@@ -121,6 +113,7 @@ case "$TARGET" in
     deploy_storage
     deploy_api
     deploy_frontend
+    deploy_worker
     ok "전체 배포 완료"
     warn "최초 1회: bash deploy/deploy.sh seed"
     ;;
