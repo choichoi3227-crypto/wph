@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "wrangler pages dev . --port 3000",
+    "build": "echo 'No build step required — static assets served as-is'",
     "deploy": "wrangler pages deploy . --project-name=cloudpress-bridge --branch=main"
   },
   "devDependencies": {
