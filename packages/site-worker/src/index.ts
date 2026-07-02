@@ -1,10 +1,16 @@
 /**
  * CloudPress Site Worker
  * ----------------------
- * 호스팅(사이트)당 10개 배포되는 엣지 런타임 Worker.
+ * 모든 호스팅(사이트)을 서빙하는 단일 Worker.
+ * *.cloud-press.co.kr/* 와일드카드 라우트로 배포되며,
+ * 요청의 Host 헤더에서 siteId를 파싱해 사이트별로 라우팅한다.
+ * (예전에는 사이트당 Worker 10개를 개별 배포/라우트 등록했지만,
+ *  사이트 생성마다 대시보드 작업이 필요해 자동화가 깨졌었다.
+ *  PhpRuntimeDO가 idFromName(siteId)로 이미 사이트별 격리를 제공하므로
+ *  Worker 자체는 하나만 있어도 된다.)
  *
  * 요청 흐름:
- *  /__health       → 즉시 200 (LoadBalancerDO 헬스체크용)
+ *  /__health       → 즉시 200
  *  정적 파일(.css/.js/.png 등) → STORAGE_WORKER Service Binding으로 직접 서빙 (빠름)
  *  .php 요청 / WP 퍼머링크    → PhpRuntimeDO로 전달 → PHP-WASM 실행 → 응답 반환
  */
@@ -14,10 +20,9 @@ export { PhpRuntimeDO } from "./php-runtime-do";
 export interface Env {
   STORAGE_WORKER: Fetcher;
   PHP_RUNTIME: DurableObjectNamespace;
-  SITE_ID: string;
-  WORKER_INDEX: string;
   STORAGE_BASE_URL: string;
-  STORAGE_API_KEY: string;
+  INTERNAL_SHARED_SECRET: string;
+  ROOT_ZONE: string; // 예: "cloud-press.co.kr" — Host에서 siteId를 떼어낼 때 사용
 }
 
 // 정적 파일로 확정 처리할 확장자 목록
@@ -45,46 +50,81 @@ export default {
 
     // ── 헬스체크 ───────────────────────────────────────────────────────
     if (path === "/__health") {
-      return new Response(
-        JSON.stringify({ ok: true, site: env.SITE_ID, worker: env.WORKER_INDEX }),
-        { headers: { "content-type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    const siteId = extractSiteId(url.hostname, env.ROOT_ZONE);
+    if (!siteId) {
+      return new Response("Not Found — invalid host", { status: 404 });
+    }
+
+    // 사이트 존재 여부 확인 (삭제/미등록 사이트로의 요청 차단)
+    const exists = await siteExists(env, siteId);
+    if (!exists) {
+      return new Response("Not Found — unknown site", { status: 404 });
     }
 
     const ext = path.split(".").pop()?.toLowerCase() ?? "";
 
     // ── 정적 파일 → STORAGE_WORKER 직접 서빙 ──────────────────────────
     if (STATIC_EXTS.has(ext)) {
-      return serveStatic(request, env, path, ext);
+      return serveStatic(env, siteId, path, ext);
     }
 
     // ── PHP / WP 퍼머링크 → PhpRuntimeDO ─────────────────────────────
-    return servePhp(request, env);
+    return servePhp(request, env, siteId);
   },
 };
+
+// ── siteId 파싱 ──────────────────────────────────────────────────────────
+
+function extractSiteId(hostname: string, rootZone: string): string | null {
+  const suffix = `.${rootZone}`;
+  if (!hostname.endsWith(suffix)) return null;
+  const siteId = hostname.slice(0, -suffix.length);
+  if (!siteId || siteId.includes(".")) return null; // 서브서브도메인 등 거부
+  if (!/^[a-z0-9-]{1,63}$/.test(siteId)) return null;
+  return siteId;
+}
+
+// ── 사이트 존재 여부 (짧게 캐시) ───────────────────────────────────────
+
+async function siteExists(env: Env, siteId: string): Promise<boolean> {
+  const res = await env.STORAGE_WORKER.fetch(
+    `${env.STORAGE_BASE_URL}/internal/site-exists?siteId=${encodeURIComponent(siteId)}`,
+    {
+      headers: { "x-internal-secret": env.INTERNAL_SHARED_SECRET },
+      cf: { cacheTtl: 30, cacheEverything: true },
+    }
+  );
+  if (!res.ok) return false;
+  const data = (await res.json()) as { exists: boolean };
+  return data.exists;
+}
 
 // ── 정적 파일 서빙 ────────────────────────────────────────────────────
 
 async function serveStatic(
-  request: Request,
   env: Env,
+  siteId: string,
   path: string,
   ext: string
 ): Promise<Response> {
   // WordPress 정적 파일은 스토리지의 core/ 접두사 아래 있음
   const storageKey = `core${path}`;
-  const storageUrl = `${env.STORAGE_BASE_URL}/${env.SITE_ID}/${storageKey}`;
+  const storageUrl = `${env.STORAGE_BASE_URL}/internal/static/${siteId}/${storageKey}`;
 
   const storageRes = await env.STORAGE_WORKER.fetch(storageUrl, {
-    method: request.method,
-    headers: { authorization: `Bearer ${env.STORAGE_API_KEY}` },
+    headers: { "x-internal-secret": env.INTERNAL_SHARED_SECRET },
   });
 
   if (!storageRes.ok) {
     // wp-content/uploads 처럼 core/ prefix 없이 저장된 파일 시도
-    const altUrl = `${env.STORAGE_BASE_URL}/${env.SITE_ID}${path}`;
+    const altUrl = `${env.STORAGE_BASE_URL}/internal/static/${siteId}${path}`;
     const altRes = await env.STORAGE_WORKER.fetch(altUrl, {
-      headers: { authorization: `Bearer ${env.STORAGE_API_KEY}` },
+      headers: { "x-internal-secret": env.INTERNAL_SHARED_SECRET },
     });
     if (!altRes.ok) return new Response("Not Found", { status: 404 });
     return buildStaticResponse(altRes, ext);
@@ -103,13 +143,17 @@ function buildStaticResponse(storageRes: Response, ext: string): Response {
 
 // ── PHP 요청 → PhpRuntimeDO ───────────────────────────────────────────
 
-async function servePhp(request: Request, env: Env): Promise<Response> {
+async function servePhp(request: Request, env: Env, siteId: string): Promise<Response> {
   // 사이트당 1개의 PhpRuntimeDO 인스턴스 (idFromName으로 항상 같은 인스턴스)
-  const doId = env.PHP_RUNTIME.idFromName(env.SITE_ID);
+  const doId = env.PHP_RUNTIME.idFromName(siteId);
   const stub = env.PHP_RUNTIME.get(doId);
 
   try {
-    return await stub.fetch(request);
+    const forwarded = new Request(request, {
+      headers: new Headers(request.headers),
+    });
+    forwarded.headers.set("x-cloudpress-site-id", siteId);
+    return await stub.fetch(forwarded);
   } catch (err: any) {
     console.error("[Site Worker] PhpRuntimeDO 오류:", err?.message);
     return phpErrorPage(err?.message ?? "PHP 런타임 오류");
