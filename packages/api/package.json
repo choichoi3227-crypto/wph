@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
+    "build": "echo 'No build step required — wrangler bundles on deploy'",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "db:init": "wrangler d1 execute cloudpress-bridge --file=./schema.sql --remote"
