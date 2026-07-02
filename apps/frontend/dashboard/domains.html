@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>도메인 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press</div>
+    <nav class="db-nav">
+      <div class="db-nav-section">메인</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">⊞</span> 호스팅</a>
+      <a class="db-nav-link" href="/dashboard/domains.html"><span class="icon">🌐</span> 도메인</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/billing.html"><span class="icon">💳</span> 청구</a>
+      <a class="db-nav-link" href="/dashboard/my-information.html"><span class="icon">👤</span> 내 정보</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main class="db-main">
+    <div class="db-topbar">
+      <div class="db-topbar-title">도메인</div>
+      <button class="btn btn-primary btn-sm" onclick="openModal('add-domain-modal')">+ 도메인 추가</button>
+    </div>
+    <div class="db-content">
+
+      <div class="alert alert-info" style="margin-bottom:var(--sp-6)">
+        도메인 추가 후 표시되는 네임서버를 도메인 등록 기관에 등록하면 전파가 시작됩니다.
+        전파에는 최대 48시간이 소요될 수 있습니다.
+      </div>
+
+      <!-- 호스팅 선택 -->
+      <div class="form-group" style="max-width:320px;margin-bottom:var(--sp-6)">
+        <label class="form-label">호스팅 선택</label>
+        <select class="form-input" id="hosting-select" onchange="loadDomains()">
+          <option value="">로딩 중...</option>
+        </select>
+      </div>
+
+      <div id="domains-loading" class="text-muted text-sm">호스팅을 선택하세요.</div>
+      <div id="domains-empty" class="hidden text-muted text-sm">등록된 도메인이 없습니다.</div>
+
+      <div id="domains-table" class="hidden">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>도메인</th>
+                  <th>상태</th>
+                  <th>DNS 레코드</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="domains-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- 도메인 추가 모달 -->
+<div class="modal-overlay" id="add-domain-modal">
+  <div class="modal">
+    <div class="modal-title">도메인 추가</div>
+    <div id="add-domain-error" class="alert alert-error hidden"><span id="add-domain-error-text"></span></div>
+    <div class="form-group">
+      <label class="form-label">도메인 이름</label>
+      <input class="form-input" id="new-domain" type="text" placeholder="example.com">
+    </div>
+    <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-2)">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('add-domain-modal')">취소</button>
+      <button class="btn btn-primary" style="flex:2" id="add-domain-btn" onclick="addDomain()">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- 네임서버 안내 모달 -->
+<div class="modal-overlay" id="ns-modal">
+  <div class="modal">
+    <div class="modal-title">네임서버 안내</div>
+    <p class="text-sm text-muted" style="margin-bottom:var(--sp-6)">
+      도메인 등록 기관에서 아래 네임서버로 변경해주세요. 변경 후 전파까지 최대 48시간이 소요됩니다.
+    </p>
+    <div id="ns-list" class="terminal" style="padding:var(--sp-4)"></div>
+    <button class="btn btn-primary w-full" style="margin-top:var(--sp-6)" onclick="closeModal('ns-modal')">확인</button>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+let hostings = [];
+
+async function init() {
+  await requireAuth();
+  const { ok, data } = await apiFetch('/hostings');
+  if (!ok || !data.hostings?.length) {
+    document.getElementById('hosting-select').innerHTML = '<option value="">호스팅 없음</option>';
+    document.getElementById('domains-loading').textContent = '먼저 호스팅을 생성해주세요.';
+    return;
+  }
+  hostings = data.hostings;
+  const sel = document.getElementById('hosting-select');
+  sel.innerHTML = hostings.map(h => `<option value="${h.id}">${h.site_name} (${h.id})</option>`).join('');
+  loadDomains();
+}
+
+async function loadDomains() {
+  const hostingId = document.getElementById('hosting-select').value;
+  if (!hostingId) return;
+  document.getElementById('domains-loading').textContent = '불러오는 중...';
+  document.getElementById('domains-loading').classList.remove('hidden');
+  document.getElementById('domains-table').classList.add('hidden');
+  document.getElementById('domains-empty').classList.add('hidden');
+
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/domains`);
+  document.getElementById('domains-loading').classList.add('hidden');
+  if (!ok) return;
+
+  const domains = data.domains || [];
+  if (domains.length === 0) {
+    document.getElementById('domains-empty').classList.remove('hidden');
+    return;
+  }
+
+  const STATUS = { active:'<span class="badge badge-green">활성</span>', pending:'<span class="badge badge-yellow">전파 중</span>', error:'<span class="badge badge-red">오류</span>' };
+  document.getElementById('domains-tbody').innerHTML = domains.map(d => `
+    <tr>
+      <td class="font-mono">${d.domain_name}</td>
+      <td>${STATUS[d.status] || d.status}</td>
+      <td><a class="btn btn-ghost btn-sm" href="/dashboard/domain/dns.html?domainId=${d.id}&domain=${d.domain_name}">DNS 레코드</a></td>
+      <td style="text-align:right">
+        ${d.status === 'pending' ? `<button class="btn btn-ghost btn-sm" onclick="checkStatus('${d.id}')">전파 확인</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="deleteDomain('${d.id}','${d.domain_name}')">삭제</button>
+      </td>
+    </tr>
+  `).join('');
+  document.getElementById('domains-table').classList.remove('hidden');
+}
+
+async function addDomain() {
+  const btn = document.getElementById('add-domain-btn');
+  const errBox = document.getElementById('add-domain-error');
+  const errText = document.getElementById('add-domain-error-text');
+  errBox.classList.add('hidden');
+  btn.disabled = true; btn.textContent = '추가 중...';
+
+  const hostingId = document.getElementById('hosting-select').value;
+  const domainName = document.getElementById('new-domain').value.trim();
+
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/domains`, {
+    method: 'POST',
+    body: JSON.stringify({ domainName }),
+  });
+
+  btn.disabled = false; btn.textContent = '추가';
+
+  if (ok) {
+    closeModal('add-domain-modal');
+    // 네임서버 안내
+    if (data.nameServers?.length) {
+      document.getElementById('ns-list').innerHTML = data.nameServers.map(ns => `<div class="t-green">${ns}</div>`).join('');
+      openModal('ns-modal');
+    }
+    await loadDomains();
+    toast('도메인이 추가되었습니다.');
+  } else {
+    errText.textContent = data.error || '도메인 추가에 실패했습니다.';
+    errBox.classList.remove('hidden');
+  }
+}
+
+async function checkStatus(domainId) {
+  const { ok, data } = await apiFetch(`/domains/${domainId}/status`);
+  if (ok) {
+    toast(data.status === 'active' ? '도메인이 활성화되었습니다! ✅' : '아직 전파 중입니다. 잠시 후 다시 확인해주세요.');
+    await loadDomains();
+  }
+}
+
+async function deleteDomain(domainId, name) {
+  if (!confirm(`"${name}" 도메인을 삭제하시겠습니까?`)) return;
+  const { ok } = await apiFetch(`/domains/${domainId}`, { method: 'DELETE' });
+  if (ok) { toast('도메인이 삭제되었습니다.'); await loadDomains(); }
+  else toast('삭제에 실패했습니다.', 'error');
+}
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudPress Bridge — 클라우드플레어 기반 워드프레스 호스팅</title>
+<meta name="description" content="100% 서버리스 워드프레스 호스팅. Cloudflare Workers + PHP-WASM 기반. GitHub 없이, 서버 없이, 자본금 제로.">
+<link rel="stylesheet" href="/css/main.css">
+<style>
+.hero-gradient {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 60% at 70% 30%, rgba(59,130,246,.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-wrap { position: relative; overflow: hidden; }
+.stat-row {
+  display: flex;
+  gap: var(--sp-8);
+  flex-wrap: wrap;
+  padding: var(--sp-8) var(--sp-8) 0;
+  max-width: 1100px;
+  margin: 0 auto;
+  border-top: 1px solid var(--border);
+}
+.stat-item { display: flex; flex-direction: column; }
+.stat-num  { font-size: var(--sz-3xl); font-weight: 700; letter-spacing: -0.04em; color: var(--text); }
+.stat-label{ font-size: var(--sz-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-top: var(--sp-1); }
+.line { position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%); opacity: .3; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="nav-logo" href="/"><span>Cloud</span>Press</a>
+  <div class="nav-links">
+    <a class="nav-link" href="/feature.html">기능</a>
+    <a class="nav-link" href="/products/wordpress-hosting.html">호스팅</a>
+    <a class="nav-link" href="/products/dns.html">DNS</a>
+    <a class="nav-link" href="/about.html">소개</a>
+    <a class="btn btn-ghost btn-sm" href="/sign-in.html">로그인</a>
+    <a class="btn btn-primary btn-sm" href="/sign-up.html">무료 시작</a>
+  </div>
+</nav>
+
+<div class="hero-wrap">
+  <div class="hero-gradient"></div>
+  <div class="hero">
+    <!-- 왼쪽: 카피 -->
+    <div>
+      <span class="hero-eyebrow">100% Cloudflare Native</span>
+      <h1 class="hero-title">서버 없이 운영하는<br>워드프레스</h1>
+      <p class="hero-desc">
+        PHP-WASM으로 구동. Workers가 트래픽을 받고,
+        Durable Object가 DB를 서빙하고, 자체 스토리지가 파일을 담는다.
+        청구서는 월 <strong>$15</strong>부터.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary btn-lg" href="/sign-up.html">지금 만들기</a>
+        <a class="btn btn-ghost btn-lg" href="/products/wordpress-hosting.html">가격 보기</a>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 터미널 (시그니처 요소) -->
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="terminal-dot"></div>
+        <div class="terminal-dot"></div>
+        <div class="terminal-dot"></div>
+        <span class="terminal-title">POST /api/hostings</span>
+      </div>
+      <div class="terminal-body">
+        <span class="t-comment"># 호스팅 생성 — 단 하나의 API 호출로</span><br>
+        <span class="t-prompt">$</span> curl -X POST https://bridge.cloudpress.io/api/hostings \<br>
+        &nbsp;&nbsp;-H <span class="t-str">"Authorization: Bearer {token}"</span> \<br>
+        &nbsp;&nbsp;-d <span class="t-str">'{'</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="t-key">"siteName"</span>: <span class="t-str">"내 블로그"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="t-key">"subdomain"</span>: <span class="t-str">"my-blog"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="t-key">"planId"</span>: <span class="t-str">"light"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="t-key">"locale"</span>: <span class="t-str">"ko_KR"</span><br>
+        &nbsp;&nbsp;<span class="t-str">'}'</span><br><br>
+        <span class="t-comment"># 응답: 수십 초 내에 WordPress 준비 완료</span><br>
+        {<br>
+        &nbsp;&nbsp;<span class="t-key">"id"</span>: <span class="t-str">"my-blog"</span>,<br>
+        &nbsp;&nbsp;<span class="t-key">"siteUrl"</span>: <span class="t-str">"https://my-blog.cloudpress.app"</span>,<br>
+        &nbsp;&nbsp;<span class="t-key">"status"</span>: <span class="t-green">"active"</span><br>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- 지표 -->
+  <div class="stat-row">
+    <div class="stat-item"><span class="stat-num">$0</span><span class="stat-label">초기 자본금</span></div>
+    <div class="stat-item"><span class="stat-num">10</span><span class="stat-label">Workers/사이트</span></div>
+    <div class="stat-item"><span class="stat-num">100%</span><span class="stat-label">자체 스토리지</span></div>
+    <div class="stat-item"><span class="stat-num">0</span><span class="stat-label">외부 DB 의존</span></div>
+  </div>
+  <div style="position:relative;height:1px;margin-top:var(--sp-8)"><div class="line"></div></div>
+</div>
+
+<!-- 기능 섹션 -->
+<section class="section">
+  <div class="section-inner">
+    <p class="section-label">핵심 기능</p>
+    <h2 class="section-title">필요한 건 전부 있다</h2>
+    <p class="section-desc">CDN, WAF, DNS, 스토리지, DB — Cloudflare 인프라 위에서 전부 자체 운영한다.</p>
+    <div class="feature-grid" style="margin-top:var(--sp-12)">
+      <div class="feature-item">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-name">PHP-WASM 엔진</div>
+        <div class="feature-desc">고성능·고효율 PHP-WASM 런타임이 Cloudflare Edge에서 직접 실행. 콜드스타트 없음.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🗄️</div>
+        <div class="feature-name">자체 S3 스토리지</div>
+        <div class="feature-desc">R2도 없이 Workers + KV + Durable Object로 구축한 100% 자체 오브젝트 스토리지.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-name">CDN & WAF 내장</div>
+        <div class="feature-desc">트래픽 로깅, Cloudflare WAF, CDN이 기본 제공. 추가 설정 없이 라이트 플랜부터 활성.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🌐</div>
+        <div class="feature-name">DNS 완전 관리</div>
+        <div class="feature-desc">대시보드에서 A, AAAA, CNAME, TXT 레코드를 직접 추가·삭제. Cloudflare API 직결.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔄</div>
+        <div class="feature-name">자동 장애 복구</div>
+        <div class="feature-desc">Workers 10개를 상시 헬스체크. 장애 Worker는 자동 제외, SQLite 손상 시 백업 복원.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🔒</div>
+        <div class="feature-name">SQLite 기반 DB</div>
+        <div class="feature-desc">Durable Object 내장 SQLite가 WordPress DB를 서빙. MySQL 없이 동작.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 가격 섹션 -->
+<section class="section" style="border-top:1px solid var(--border)">
+  <div class="section-inner">
+    <p class="section-label">가격</p>
+    <h2 class="section-title">단순한 가격</h2>
+    <p class="section-desc">호스팅 단위 월정액. 숨은 요금 없음. 언제든 플랜 변경 가능.</p>
+    <div class="pricing-grid">
+
+      <div class="pricing-card">
+        <div class="pricing-name">라이트</div>
+        <div class="pricing-price">$15</div>
+        <div class="pricing-period">/ 월</div>
+        <ul class="pricing-features">
+          <li>트래픽 무제한</li>
+          <li>CDN 기본 제공</li>
+          <li>WAF 기본 제공</li>
+          <li>자체 스토리지 포함</li>
+          <li>WordPress 자동 설치</li>
+        </ul>
+        <a class="btn btn-ghost w-full" href="/sign-up.html?plan=light">시작하기</a>
+      </div>
+
+      <div class="pricing-card featured">
+        <div class="pricing-name">스탠다드</div>
+        <div class="pricing-price">$30</div>
+        <div class="pricing-period">/ 월</div>
+        <ul class="pricing-features">
+          <li>라이트 전체 포함</li>
+          <li>SSH 접속</li>
+          <li>FTP 접속</li>
+          <li>DB 직접 접근</li>
+          <li>우선 지원</li>
+        </ul>
+        <a class="btn btn-primary w-full" href="/sign-up.html?plan=standard">시작하기</a>
+      </div>
+
+      <div class="pricing-card">
+        <div class="pricing-name">스마트</div>
+        <div class="pricing-price">$49</div>
+        <div class="pricing-period">/ 월</div>
+        <ul class="pricing-features">
+          <li>스탠다드 전체 포함</li>
+          <li>스탠다드 전체 기능</li>
+          <li>기타 고급 기능</li>
+          <li>멀티 도메인</li>
+          <li>전담 기술 지원</li>
+        </ul>
+        <a class="btn btn-ghost w-full" href="/sign-up.html?plan=smart">시작하기</a>
+      </div>
+
+    </div>
+
+    <!-- DNS 추가 과금 안내 -->
+    <div class="card card-sm" style="margin-top:var(--sp-8);max-width:480px">
+      <div class="text-sm fw-600" style="margin-bottom:var(--sp-2)">DNS 추가 과금</div>
+      <div class="text-sm text-muted">Zone당 <strong>$0.10 / 월</strong> &nbsp;·&nbsp; 쿼리당 <strong>$0.09</strong></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="section" style="border-top:1px solid var(--border);text-align:center">
+  <div class="section-inner" style="max-width:600px">
+    <h2 class="section-title">지금 바로 시작하세요</h2>
+    <p class="section-desc" style="margin:var(--sp-4) auto var(--sp-8)">설정 시간 없음. API 한 번으로 WordPress가 올라갑니다.</p>
+    <a class="btn btn-primary btn-lg" href="/sign-up.html">무료로 계정 만들기</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <span><strong>CloudPress Bridge</strong> &nbsp;·&nbsp; 100% Cloudflare Native</span>
+    <div class="flex gap-6">
+      <a href="/about.html">소개</a>
+      <a href="/feature.html">기능</a>
+      <a href="/products/wordpress-hosting.html">호스팅</a>
+      <a href="/products/dns.html">DNS</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

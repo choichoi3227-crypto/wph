@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>대시보드 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+
+  <!-- 사이드바 -->
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press</div>
+    <nav class="db-nav">
+      <div class="db-nav-section">메인</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">⊞</span> 호스팅</a>
+      <a class="db-nav-link" href="/dashboard/domains.html"><span class="icon">🌐</span> 도메인</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/billing.html"><span class="icon">💳</span> 청구</a>
+      <a class="db-nav-link" href="/dashboard/my-information.html"><span class="icon">👤</span> 내 정보</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <!-- 메인 -->
+  <main class="db-main">
+    <div class="db-topbar">
+      <div class="db-topbar-title">호스팅</div>
+      <button class="btn btn-primary btn-sm" onclick="openModal('create-modal')">+ 새 호스팅</button>
+    </div>
+    <div class="db-content">
+
+      <!-- 환영 배너 (처음 방문 시) -->
+      <div id="welcome-banner" class="alert alert-info hidden" style="margin-bottom:var(--sp-6)">
+        🎉 &nbsp;가입을 환영합니다! 아래에서 첫 워드프레스 호스팅을 만들어보세요.
+      </div>
+
+      <!-- 호스팅 목록 -->
+      <div id="hosting-list">
+        <div id="loading" class="text-muted text-sm">불러오는 중...</div>
+        <div id="empty" class="hidden" style="text-align:center;padding:var(--sp-16) 0">
+          <div style="font-size:3rem;margin-bottom:var(--sp-4)">🚀</div>
+          <div class="fw-600" style="margin-bottom:var(--sp-2)">아직 호스팅이 없습니다</div>
+          <div class="text-muted text-sm" style="margin-bottom:var(--sp-6)">첫 워드프레스 사이트를 지금 만들어보세요.</div>
+          <button class="btn btn-primary" onclick="openModal('create-modal')">호스팅 만들기</button>
+        </div>
+        <div id="hosting-cards" class="hidden" style="display:flex;flex-direction:column;gap:var(--sp-4)"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 호스팅 생성 모달 -->
+<div class="modal-overlay" id="create-modal">
+  <div class="modal">
+    <div class="modal-title">새 호스팅 만들기</div>
+
+    <div id="create-error" class="alert alert-error hidden" style="margin-bottom:var(--sp-4)"><span id="create-error-text"></span></div>
+
+    <div class="form-group">
+      <label class="form-label" for="site-name">사이트 이름</label>
+      <input class="form-input" id="site-name" type="text" placeholder="내 블로그">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="subdomain">서브도메인</label>
+      <div style="display:flex;align-items:center;gap:var(--sp-2)">
+        <input class="form-input" id="subdomain" type="text" placeholder="my-blog" style="flex:1">
+        <span class="text-muted text-sm" style="white-space:nowrap">.cloudpress.app</span>
+      </div>
+      <div class="form-hint">영문 소문자, 숫자, 하이픈만 가능 (3~40자)</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="plan-select">플랜</label>
+      <select class="form-input" id="plan-select">
+        <option value="light">라이트 — $15/월</option>
+        <option value="standard" selected>스탠다드 — $30/월 (추천)</option>
+        <option value="smart">스마트 — $49/월</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="locale-select">언어</label>
+      <select class="form-input" id="locale-select">
+        <option value="ko_KR" selected>한국어</option>
+        <option value="en_US">English</option>
+        <option value="ja">日本語</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-2)">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('create-modal')">취소</button>
+      <button class="btn btn-primary" style="flex:2" id="create-btn" onclick="createHosting()">만들기</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+if (params.get('welcome') === '1') document.getElementById('welcome-banner').classList.remove('hidden');
+if (params.get('plan')) document.getElementById('plan-select').value = params.get('plan');
+
+const STATUS_BADGE = {
+  active: 'badge-green',
+  provisioning: 'badge-yellow',
+  suspended: 'badge-red',
+  deleted: 'badge-red',
+};
+const STATUS_LABEL = { active:'활성', provisioning:'배포 중', suspended:'정지', deleted:'삭제됨' };
+
+async function loadHostings() {
+  const user = await requireAuth(); if (!user) return;
+  const { ok, data } = await apiFetch('/hostings');
+  document.getElementById('loading').classList.add('hidden');
+  if (!ok) return;
+
+  const hostings = data.hostings || [];
+  if (hostings.length === 0) {
+    document.getElementById('empty').classList.remove('hidden');
+    return;
+  }
+
+  const cards = document.getElementById('hosting-cards');
+  cards.style.display = 'flex';
+  cards.classList.remove('hidden');
+  cards.innerHTML = hostings.map(h => `
+    <div class="card" style="display:flex;align-items:center;gap:var(--sp-6);flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div class="fw-600" style="margin-bottom:var(--sp-1)">${h.site_name}</div>
+        <div class="text-sm text-muted font-mono">${h.site_url || `https://${h.id}.cloudpress.app`}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap">
+        <span class="badge ${STATUS_BADGE[h.status] || 'badge-blue'}">${STATUS_LABEL[h.status] || h.status}</span>
+        <span class="text-xs text-muted">${h.plan_id} 플랜</span>
+        <span class="text-xs text-muted">${fmtDate(h.created_at)}</span>
+        <a class="btn btn-ghost btn-sm" href="https://${h.id}.cloudpress.app" target="_blank">방문</a>
+        <button class="btn btn-ghost btn-sm" onclick="deleteHosting('${h.id}')">삭제</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function createHosting() {
+  const btn = document.getElementById('create-btn');
+  const errBox = document.getElementById('create-error');
+  const errText = document.getElementById('create-error-text');
+  errBox.classList.add('hidden');
+  btn.textContent = '배포 중...'; btn.disabled = true;
+
+  const { ok, data } = await apiFetch('/hostings', {
+    method: 'POST',
+    body: JSON.stringify({
+      siteName: document.getElementById('site-name').value.trim(),
+      subdomain: document.getElementById('subdomain').value.trim(),
+      planId: document.getElementById('plan-select').value,
+      locale: document.getElementById('locale-select').value,
+    }),
+  });
+
+  if (ok) {
+    closeModal('create-modal');
+    toast('호스팅이 생성되었습니다 🎉');
+    await loadHostings();
+  } else {
+    errText.textContent = data.error || '호스팅 생성에 실패했습니다.';
+    errBox.classList.remove('hidden');
+  }
+  btn.textContent = '만들기'; btn.disabled = false;
+}
+
+async function deleteHosting(id) {
+  if (!confirm(`"${id}" 호스팅을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) return;
+  const { ok } = await apiFetch(`/hostings/${id}`, { method: 'DELETE' });
+  if (ok) { toast('삭제되었습니다.'); await loadHostings(); }
+  else toast('삭제에 실패했습니다.', 'error');
+}
+
+loadHostings();
+</script>
+</body>
+</html>

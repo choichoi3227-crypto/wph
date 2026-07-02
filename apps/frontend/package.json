@@ -1,0 +1,12 @@
+{
+  "name": "@cloudpress/frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev . --port 3000",
+    "deploy": "wrangler pages deploy . --project-name=cloudpress-bridge --branch=main"
+  },
+  "devDependencies": {
+    "wrangler": "^3.109.1"
+  }
+}

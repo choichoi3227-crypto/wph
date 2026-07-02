@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>기능 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<nav class="nav">
+  <a class="nav-logo" href="/"><span>Cloud</span>Press</a>
+  <div class="nav-links">
+    <a class="nav-link" href="/feature.html">기능</a>
+    <a class="nav-link" href="/products/wordpress-hosting.html">호스팅</a>
+    <a class="nav-link" href="/products/dns.html">DNS</a>
+    <a class="nav-link" href="/about.html">소개</a>
+    <a class="btn btn-ghost btn-sm" href="/sign-in.html">로그인</a>
+    <a class="btn btn-primary btn-sm" href="/sign-up.html">무료 시작</a>
+  </div>
+</nav>
+
+<section class="section">
+  <div class="section-inner">
+    <p class="section-label">기능 전체</p>
+    <h1 class="section-title">아키텍처부터<br>대시보드까지</h1>
+    <p class="section-desc">Cloudflare의 글로벌 엣지 위에서 동작하는 모든 레이어를 직접 구현했습니다.</p>
+  </div>
+</section>
+
+<section class="section" style="border-top:1px solid var(--border);padding-top:0">
+  <div class="section-inner">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-8);align-items:start" class="feature-detail-grid">
+
+      <div>
+        <div class="section-label" style="margin-bottom:var(--sp-4)">스토리지</div>
+        <h2 style="font-size:var(--sz-2xl);font-weight:700;margin-bottom:var(--sp-4)">100% 자체 S3 호환 스토리지</h2>
+        <p class="text-muted" style="margin-bottom:var(--sp-6);line-height:1.7">
+          R2도, AWS S3도 아닙니다. Workers + KV + Durable Object만으로 구현한 오브젝트 스토리지.
+          SigV4와 Bearer 토큰 인증을 모두 지원해 기존 S3 클라이언트를 그대로 사용할 수 있습니다.
+        </p>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:var(--sp-3)">
+          <li class="text-sm">✓ &nbsp;4MB 청크 분산 저장 (KV 25MB 한도 대응)</li>
+          <li class="text-sm">✓ &nbsp;멀티파트 업로드 지원</li>
+          <li class="text-sm">✓ &nbsp;HTTP Range 요청 지원</li>
+          <li class="text-sm">✓ &nbsp;AWS SigV4 + Bearer 이중 인증</li>
+          <li class="text-sm">✓ &nbsp;ListObjectsV2 호환</li>
+        </ul>
+      </div>
+
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="terminal-dot"></div><div class="terminal-dot"></div><div class="terminal-dot"></div>
+          <span class="terminal-title">AWS S3 호환 PUT</span>
+        </div>
+        <div class="terminal-body">
+          <span class="t-comment"># 기존 aws-sdk 그대로 사용 가능</span><br>
+          const s3 = new S3Client({<br>
+          &nbsp;&nbsp;<span class="t-key">endpoint</span>: <span class="t-str">"https://storage.cloudpress.io"</span>,<br>
+          &nbsp;&nbsp;<span class="t-key">credentials</span>: { accessKeyId, secretAccessKey }<br>
+          });<br><br>
+          await s3.send(new PutObjectCommand({<br>
+          &nbsp;&nbsp;<span class="t-key">Bucket</span>: <span class="t-str">"my-site"</span>,<br>
+          &nbsp;&nbsp;<span class="t-key">Key</span>: <span class="t-str">"wp-content/photo.jpg"</span>,<br>
+          &nbsp;&nbsp;<span class="t-key">Body</span>: fileBuffer<br>
+          }));
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="section" style="border-top:1px solid var(--border)">
+  <div class="section-inner">
+    <div class="feature-grid">
+      <div class="feature-item">
+        <div class="feature-icon">🔄</div>
+        <div class="feature-name">Workers 로드밸런싱</div>
+        <div class="feature-desc">호스팅당 Workers 10개를 생성하고, Durable Object가 헬스체크 + 라운드로빈으로 트래픽을 분산한다.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🗃️</div>
+        <div class="feature-name">SQLite 내장 DB</div>
+        <div class="feature-desc">Durable Object의 내장 SQLite가 WordPress DB를 직접 서빙. MySQL 서버 불필요.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📦</div>
+        <div class="feature-name">워드프레스 자동 설치</div>
+        <div class="feature-desc">코어 + SQLite/Hello Dolly/Akismet 플러그인 + GeneratePress/Kadence 테마를 템플릿에서 복제해 수십 초 내 준비.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🌐</div>
+        <div class="feature-name">Cloudflare DNS 직결</div>
+        <div class="feature-desc">대시보드에서 Zone 생성, A/AAAA/CNAME/TXT/MX 레코드를 Cloudflare API 직접 호출로 즉시 반영.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-name">CDN & WAF 기본 내장</div>
+        <div class="feature-desc">Cloudflare CDN과 WAF가 라이트 플랜부터 자동 활성. 별도 설정 없이 글로벌 캐시와 DDoS 방어 제공.</div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">💳</div>
+        <div class="feature-name">PayPal 결제 통합</div>
+        <div class="feature-desc">PayPal 주문 생성 → 브라우저 승인 → 서버 측 캡처까지 전 과정을 자체 API로 처리.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="border-top:1px solid var(--border);text-align:center">
+  <div class="section-inner" style="max-width:600px">
+    <h2 class="section-title">직접 확인해보세요</h2>
+    <p class="section-desc" style="margin:var(--sp-4) auto var(--sp-8)">계정을 만들고 첫 호스팅을 무료로 시작하세요.</p>
+    <a class="btn btn-primary btn-lg" href="/sign-up.html">무료로 시작</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <span><strong>CloudPress Bridge</strong></span>
+    <div class="flex gap-6">
+      <a href="/about.html">소개</a>
+      <a href="/products/wordpress-hosting.html">호스팅</a>
+      <a href="/products/dns.html">DNS</a>
+    </div>
+  </div>
+</footer>
+
+<style>
+@media (max-width: 768px) { .feature-detail-grid { grid-template-columns: 1fr !important; } }
+</style>
+</body>
+</html>

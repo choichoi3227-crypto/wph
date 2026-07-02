@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>회원가입 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+<style>
+body { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:var(--sp-8); }
+.auth-box { width:100%; max-width:420px; }
+.auth-logo { font-size:var(--sz-xl); font-weight:700; margin-bottom:var(--sp-8); }
+.auth-logo span { color:var(--accent); }
+.auth-title { font-size:var(--sz-2xl); font-weight:700; margin-bottom:var(--sp-2); }
+.auth-sub { color:var(--text-muted); font-size:var(--sz-sm); margin-bottom:var(--sp-8); }
+.auth-footer { text-align:center; font-size:var(--sz-sm); color:var(--text-muted); margin-top:var(--sp-6); }
+</style>
+</head>
+<body>
+<div class="auth-box">
+  <a class="auth-logo" href="/"><span>Cloud</span>Press</a>
+  <h1 class="auth-title">계정 만들기</h1>
+  <p class="auth-sub">무료로 시작하고, 호스팅 생성 후 결제하세요.</p>
+
+  <div id="error-msg" class="alert alert-error hidden">
+    <span id="error-text"></span>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="name">이름 (선택)</label>
+    <input class="form-input" id="name" type="text" placeholder="홍길동" autocomplete="name">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="email">이메일</label>
+    <input class="form-input" id="email" type="email" placeholder="hello@example.com" autocomplete="email">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="password">비밀번호</label>
+    <input class="form-input" id="password" type="password" placeholder="8자 이상" autocomplete="new-password">
+    <div class="form-hint">최소 8자 이상</div>
+  </div>
+
+  <button class="btn btn-primary w-full btn-lg" id="submit-btn" style="margin-top:var(--sp-2)">계정 만들기</button>
+
+  <div class="auth-footer">
+    이미 계정이 있으신가요? <a href="/sign-in.html">로그인</a>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const plan = params.get('plan');
+
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('submit-btn');
+  const errBox = document.getElementById('error-msg');
+  const errText = document.getElementById('error-text');
+  errBox.classList.add('hidden');
+  btn.textContent = '처리 중...';
+  btn.disabled = true;
+
+  const { ok, data } = await apiFetch('/auth/sign-up', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: document.getElementById('email').value.trim(),
+      password: document.getElementById('password').value,
+      name: document.getElementById('name').value.trim() || undefined,
+    }),
+  });
+
+  if (ok) {
+    const next = params.get('next') || '/dashboard/index.html';
+    window.location.href = plan ? `/dashboard/index.html?welcome=1&plan=${plan}` : next;
+  } else {
+    errText.textContent = data.error || '회원가입에 실패했습니다.';
+    errBox.classList.remove('hidden');
+    btn.textContent = '계정 만들기';
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

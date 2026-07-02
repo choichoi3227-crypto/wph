@@ -1,0 +1,28 @@
+{
+  "name": "cloudpress-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CloudPress Bridge — 100% Cloudflare Native WordPress Hosting (monorepo)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:storage":  "npm -w packages/storage run dev",
+    "dev:api":      "npm -w packages/api run dev",
+    "dev:frontend": "npm -w apps/frontend run dev",
+    "dev:worker":   "npm -w packages/site-worker run dev",
+
+    "build": "npm -w packages/storage run typecheck && npm -w packages/api run typecheck && npm -w packages/site-worker run typecheck",
+    "typecheck": "npm run build",
+
+    "deploy:storage": "npm -w packages/storage run deploy",
+    "deploy:api":     "npm -w packages/api run deploy",
+    "deploy:frontend":"npm -w apps/frontend run deploy",
+    "deploy:worker":  "npm -w packages/site-worker run deploy",
+    "deploy:all":     "bash deploy/deploy.sh all"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

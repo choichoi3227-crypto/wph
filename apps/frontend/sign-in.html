@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로그인 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+<style>
+body { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:var(--sp-8); }
+.auth-box { width:100%; max-width:420px; }
+.auth-logo { font-size:var(--sz-xl); font-weight:700; margin-bottom:var(--sp-8); }
+.auth-logo span { color:var(--accent); }
+.auth-title { font-size:var(--sz-2xl); font-weight:700; margin-bottom:var(--sp-2); }
+.auth-sub { color:var(--text-muted); font-size:var(--sz-sm); margin-bottom:var(--sp-8); }
+.auth-footer { text-align:center; font-size:var(--sz-sm); color:var(--text-muted); margin-top:var(--sp-6); }
+</style>
+</head>
+<body>
+<div class="auth-box">
+  <a class="auth-logo" href="/"><span>Cloud</span>Press</a>
+  <h1 class="auth-title">로그인</h1>
+  <p class="auth-sub">계속하려면 계정에 로그인하세요.</p>
+
+  <div id="error-msg" class="alert alert-error hidden">
+    <span id="error-text"></span>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="email">이메일</label>
+    <input class="form-input" id="email" type="email" placeholder="hello@example.com" autocomplete="email">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="password">비밀번호</label>
+    <input class="form-input" id="password" type="password" placeholder="비밀번호 입력" autocomplete="current-password">
+  </div>
+
+  <button class="btn btn-primary w-full btn-lg" id="submit-btn" style="margin-top:var(--sp-2)">로그인</button>
+
+  <div class="auth-footer" style="margin-top:var(--sp-6)">
+    계정이 없으신가요? <a href="/sign-up.html">회원가입</a>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+
+document.getElementById('submit-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('submit-btn');
+  const errBox = document.getElementById('error-msg');
+  const errText = document.getElementById('error-text');
+  errBox.classList.add('hidden');
+  btn.textContent = '처리 중...';
+  btn.disabled = true;
+
+  const { ok, data } = await apiFetch('/auth/sign-in', {
+    method: 'POST',
+    body: JSON.stringify({
+      email: document.getElementById('email').value.trim(),
+      password: document.getElementById('password').value,
+    }),
+  });
+
+  if (ok) {
+    window.location.href = params.get('next') || '/dashboard/index.html';
+  } else {
+    errText.textContent = data.error || '로그인에 실패했습니다.';
+    errBox.classList.remove('hidden');
+    btn.textContent = '로그인';
+    btn.disabled = false;
+  }
+});
+
+// Enter 키 지원
+document.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('submit-btn').click(); });
+</script>
+</body>
+</html>

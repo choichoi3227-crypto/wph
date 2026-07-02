@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DNS 레코드 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press</div>
+    <nav class="db-nav">
+      <div class="db-nav-section">메인</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">⊞</span> 호스팅</a>
+      <a class="db-nav-link" href="/dashboard/domains.html"><span class="icon">🌐</span> 도메인</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/billing.html"><span class="icon">💳</span> 청구</a>
+      <a class="db-nav-link" href="/dashboard/my-information.html"><span class="icon">👤</span> 내 정보</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main class="db-main">
+    <div class="db-topbar">
+      <div style="display:flex;align-items:center;gap:var(--sp-3)">
+        <a href="/dashboard/domains.html" class="btn btn-ghost btn-sm">← 도메인</a>
+        <div class="db-topbar-title" id="domain-title">DNS 레코드</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openModal('add-record-modal')">+ 레코드 추가</button>
+    </div>
+    <div class="db-content">
+
+      <div class="alert alert-info" style="margin-bottom:var(--sp-6)">
+        레코드 변경은 즉시 Cloudflare에 반영되지만, 전파에 수 분이 소요될 수 있습니다.
+      </div>
+
+      <div id="records-loading" class="text-muted text-sm">불러오는 중...</div>
+      <div id="records-empty" class="hidden text-muted text-sm">등록된 DNS 레코드가 없습니다.</div>
+
+      <div id="records-table" class="hidden">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>타입</th>
+                  <th>이름</th>
+                  <th>값</th>
+                  <th>TTL</th>
+                  <th>프록시</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="records-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- 레코드 추가 모달 -->
+<div class="modal-overlay" id="add-record-modal">
+  <div class="modal">
+    <div class="modal-title">DNS 레코드 추가</div>
+    <div id="rec-error" class="alert alert-error hidden"><span id="rec-error-text"></span></div>
+
+    <div class="form-group">
+      <label class="form-label">타입</label>
+      <select class="form-input" id="rec-type" onchange="onTypeChange()">
+        <option value="A">A</option>
+        <option value="AAAA">AAAA</option>
+        <option value="CNAME">CNAME</option>
+        <option value="TXT">TXT</option>
+        <option value="MX">MX</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">이름</label>
+      <input class="form-input" id="rec-name" type="text" placeholder="@ 또는 www">
+    </div>
+    <div class="form-group">
+      <label class="form-label" id="rec-content-label">값 (IPv4)</label>
+      <input class="form-input" id="rec-content" type="text" placeholder="1.2.3.4">
+    </div>
+    <div class="form-group">
+      <label class="form-label">TTL</label>
+      <select class="form-input" id="rec-ttl">
+        <option value="1">자동</option>
+        <option value="300">5분</option>
+        <option value="3600">1시간</option>
+        <option value="86400">24시간</option>
+      </select>
+    </div>
+    <div class="form-group" id="proxied-group">
+      <label class="form-label" style="display:flex;align-items:center;gap:var(--sp-2);cursor:pointer">
+        <input type="checkbox" id="rec-proxied" checked style="width:16px;height:16px">
+        Cloudflare 프록시 활성화 (CDN/WAF 적용)
+      </label>
+    </div>
+
+    <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-2)">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('add-record-modal')">취소</button>
+      <button class="btn btn-primary" style="flex:2" id="add-rec-btn" onclick="addRecord()">추가</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const DOMAIN_ID = params.get('domainId');
+const DOMAIN_NAME = params.get('domain') || 'DNS 레코드';
+
+document.getElementById('domain-title').textContent = DOMAIN_NAME;
+
+const TYPE_PLACEHOLDER = { A:'1.2.3.4', AAAA:'::1', CNAME:'example.com', TXT:'v=spf1 include:...', MX:'mail.example.com' };
+const TYPE_LABEL = { A:'값 (IPv4)', AAAA:'값 (IPv6)', CNAME:'가리킬 도메인', TXT:'텍스트 값', MX:'메일 서버 도메인' };
+const NO_PROXY_TYPES = ['TXT', 'MX'];
+
+function onTypeChange() {
+  const type = document.getElementById('rec-type').value;
+  document.getElementById('rec-content').placeholder = TYPE_PLACEHOLDER[type] || '';
+  document.getElementById('rec-content-label').textContent = TYPE_LABEL[type] || '값';
+  document.getElementById('proxied-group').style.display = NO_PROXY_TYPES.includes(type) ? 'none' : '';
+}
+
+async function loadRecords() {
+  await requireAuth();
+  const { ok, data } = await apiFetch(`/domains/${DOMAIN_ID}/dns`);
+  document.getElementById('records-loading').classList.add('hidden');
+  if (!ok) return;
+
+  const records = data.records || [];
+  if (records.length === 0) {
+    document.getElementById('records-empty').classList.remove('hidden');
+    return;
+  }
+
+  document.getElementById('records-tbody').innerHTML = records.map(r => `
+    <tr>
+      <td><span class="badge badge-blue">${r.type}</span></td>
+      <td class="font-mono text-sm">${r.name}</td>
+      <td class="font-mono text-sm" style="max-width:240px;overflow:hidden;text-overflow:ellipsis">${r.content}</td>
+      <td class="text-sm text-muted">${r.ttl === 1 ? '자동' : r.ttl + 's'}</td>
+      <td>${r.proxied ? '<span class="badge badge-green">ON</span>' : '<span class="text-muted text-xs">OFF</span>'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="deleteRecord('${r.id}')">삭제</button></td>
+    </tr>
+  `).join('');
+  document.getElementById('records-table').classList.remove('hidden');
+}
+
+async function addRecord() {
+  const btn = document.getElementById('add-rec-btn');
+  const errBox = document.getElementById('rec-error');
+  const errText = document.getElementById('rec-error-text');
+  errBox.classList.add('hidden');
+  btn.disabled = true; btn.textContent = '추가 중...';
+
+  const type = document.getElementById('rec-type').value;
+  const { ok, data } = await apiFetch(`/domains/${DOMAIN_ID}/dns`, {
+    method: 'POST',
+    body: JSON.stringify({
+      type,
+      name: document.getElementById('rec-name').value.trim(),
+      content: document.getElementById('rec-content').value.trim(),
+      ttl: Number(document.getElementById('rec-ttl').value),
+      proxied: !NO_PROXY_TYPES.includes(type) && document.getElementById('rec-proxied').checked,
+    }),
+  });
+
+  btn.disabled = false; btn.textContent = '추가';
+  if (ok) {
+    closeModal('add-record-modal');
+    toast('레코드가 추가되었습니다.');
+    document.getElementById('records-loading').classList.remove('hidden');
+    document.getElementById('records-table').classList.add('hidden');
+    document.getElementById('records-empty').classList.add('hidden');
+    await loadRecords();
+  } else {
+    errText.textContent = data.error || '추가에 실패했습니다.';
+    errBox.classList.remove('hidden');
+  }
+}
+
+async function deleteRecord(recordId) {
+  if (!confirm('이 DNS 레코드를 삭제하시겠습니까?')) return;
+  const { ok } = await apiFetch(`/domains/${DOMAIN_ID}/dns/${recordId}`, { method: 'DELETE' });
+  if (ok) { toast('삭제되었습니다.'); await loadRecords(); }
+  else toast('삭제에 실패했습니다.', 'error');
+}
+
+if (!DOMAIN_ID) {
+  document.getElementById('records-loading').textContent = 'URL 파라미터가 없습니다.';
+} else {
+  loadRecords();
+}
+</script>
+</body>
+</html>

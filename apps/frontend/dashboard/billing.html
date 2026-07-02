@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>청구 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press</div>
+    <nav class="db-nav">
+      <div class="db-nav-section">메인</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">⊞</span> 호스팅</a>
+      <a class="db-nav-link" href="/dashboard/domains.html"><span class="icon">🌐</span> 도메인</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/billing.html"><span class="icon">💳</span> 청구</a>
+      <a class="db-nav-link" href="/dashboard/my-information.html"><span class="icon">👤</span> 내 정보</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main class="db-main">
+    <div class="db-topbar"><div class="db-topbar-title">청구</div></div>
+    <div class="db-content">
+
+      <!-- 호스팅별 결제 -->
+      <h2 style="font-size:var(--sz-lg);font-weight:600;margin-bottom:var(--sp-4)">호스팅 결제</h2>
+
+      <div class="form-group" style="max-width:320px;margin-bottom:var(--sp-6)">
+        <label class="form-label">호스팅 선택</label>
+        <select class="form-input" id="hosting-select" onchange="loadBilling()">
+          <option value="">로딩 중...</option>
+        </select>
+      </div>
+
+      <div id="billing-area" class="hidden">
+        <!-- 현재 플랜 -->
+        <div class="card" style="margin-bottom:var(--sp-6)">
+          <div class="text-sm text-muted fw-600" style="margin-bottom:var(--sp-2)">현재 플랜</div>
+          <div style="display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap">
+            <div>
+              <span id="plan-name" class="fw-700" style="font-size:var(--sz-xl)">—</span>
+              <span id="plan-price" class="text-muted text-sm" style="margin-left:var(--sp-2)"></span>
+            </div>
+            <span id="sub-status-badge"></span>
+          </div>
+        </div>
+
+        <!-- 결제 버튼 (PayPal) -->
+        <div class="card" style="margin-bottom:var(--sp-6)">
+          <div class="fw-600" style="margin-bottom:var(--sp-2)">이번 달 결제</div>
+          <div class="text-sm text-muted" style="margin-bottom:var(--sp-4)">PayPal로 안전하게 결제합니다. 결제 후 즉시 활성화됩니다.</div>
+          <div id="paypal-container">
+            <button class="btn btn-primary" id="paypal-btn" onclick="startPayment()">
+              PayPal로 결제
+            </button>
+          </div>
+          <div id="paypal-capture" class="hidden" style="margin-top:var(--sp-4)">
+            <div class="alert alert-info">PayPal 결제창에서 완료 후 아래 버튼을 눌러주세요.</div>
+            <button class="btn btn-primary" onclick="capturePayment()">결제 확인</button>
+          </div>
+        </div>
+
+        <!-- 청구 내역 -->
+        <h3 style="font-size:var(--sz-md);font-weight:600;margin-bottom:var(--sp-4)">청구 내역</h3>
+        <div id="invoices-empty" class="text-muted text-sm hidden">아직 청구 내역이 없습니다.</div>
+        <div id="invoices-table" class="hidden">
+          <div class="card" style="padding:0;overflow:hidden">
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>날짜</th><th>금액</th><th>상태</th><th>PayPal 주문 ID</th></tr>
+                </thead>
+                <tbody id="invoices-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+let currentHostingId = null;
+let currentOrderId = null;
+
+const PLAN_PRICE = { light:'$15/월', standard:'$30/월', smart:'$49/월' };
+const PLAN_NAME  = { light:'라이트', standard:'스탠다드', smart:'스마트' };
+const INV_STATUS = { paid:'<span class="badge badge-green">결제완료</span>', unpaid:'<span class="badge badge-yellow">미결제</span>', failed:'<span class="badge badge-red">실패</span>', refunded:'<span class="badge badge-blue">환불</span>' };
+
+async function init() {
+  await requireAuth();
+  const { ok, data } = await apiFetch('/hostings');
+  if (!ok || !data.hostings?.length) {
+    document.getElementById('hosting-select').innerHTML = '<option value="">호스팅 없음</option>';
+    return;
+  }
+  const sel = document.getElementById('hosting-select');
+  sel.innerHTML = data.hostings.map(h => `<option value="${h.id}">${h.site_name} (${h.id})</option>`).join('');
+  currentHostingId = data.hostings[0].id;
+  await loadBilling();
+}
+
+async function loadBilling() {
+  currentHostingId = document.getElementById('hosting-select').value;
+  if (!currentHostingId) return;
+
+  const { ok, data } = await apiFetch(`/hostings/${currentHostingId}`);
+  if (!ok) return;
+  document.getElementById('billing-area').classList.remove('hidden');
+  document.getElementById('plan-name').textContent = PLAN_NAME[data.plan_id] || data.plan_id;
+  document.getElementById('plan-price').textContent = PLAN_PRICE[data.plan_id] || '';
+}
+
+async function startPayment() {
+  const btn = document.getElementById('paypal-btn');
+  btn.textContent = '처리 중...'; btn.disabled = true;
+
+  const { ok, data } = await apiFetch(`/hostings/${currentHostingId}/payment`, { method: 'POST' });
+  btn.textContent = 'PayPal로 결제'; btn.disabled = false;
+  if (!ok) { toast(data.error || '결제 시작 실패', 'error'); return; }
+
+  currentOrderId = data.orderId;
+  // PayPal 결제창 열기 (sandbox: paypal.com/checkoutnow)
+  const paypalEnv = 'sandbox'; // 배포 시 live로 교체
+  const paypalBase = paypalEnv === 'live' ? 'https://www.paypal.com' : 'https://www.sandbox.paypal.com';
+  window.open(`${paypalBase}/checkoutnow?token=${data.orderId}`, '_blank', 'width=520,height=640');
+  document.getElementById('paypal-capture').classList.remove('hidden');
+}
+
+async function capturePayment() {
+  if (!currentOrderId) return;
+  const { ok, data } = await apiFetch('/payments/capture', {
+    method: 'POST',
+    body: JSON.stringify({ orderId: currentOrderId }),
+  });
+  if (ok && data.status === 'paid') {
+    toast('결제가 완료되었습니다 ✅');
+    document.getElementById('paypal-capture').classList.add('hidden');
+    currentOrderId = null;
+  } else {
+    toast(data.error || '결제 확인 실패. PayPal에서 완료 후 다시 시도해주세요.', 'error');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

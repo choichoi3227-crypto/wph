@@ -1,0 +1,30 @@
+name = "cloudpress-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+routes = [
+  { pattern = "api.cloud-press.co.kr/*", custom_domain = true }
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cloudpress-bridge"
+database_id = "REPLACE_WITH_D1_ID"
+
+# cloudpress-storage Worker를 Service Binding으로 연결
+# HTTP 왕복 없이 Worker 내부에서 직접 호출 (같은 Cloudflare 네트워크)
+[[services]]
+binding = "STORAGE_WORKER"
+service = "cloudpress-storage"   # packages/storage의 name과 일치해야 함
+
+[vars]
+CF_ACCOUNT_ID    = "REPLACE_WITH_CF_ACCOUNT_ID"
+STORAGE_BASE_URL = "https://storage.cloud-press.co.kr"
+TEMPLATE_API_KEY = "REPLACE_WITH_SECRET"
+PAYPAL_ENV       = "sandbox"   # 라이브 전환 시 "live"로 변경
+
+# wrangler secret put으로 등록할 시크릿:
+#   CF_API_TOKEN           Cloudflare Zone/DNS API 토큰
+#   PAYPAL_CLIENT_ID
+#   PAYPAL_CLIENT_SECRET

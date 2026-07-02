@@ -1,0 +1,39 @@
+name = "cloudpress-storage"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 커스텀 도메인 — Cloudflare DNS에서 CNAME 설정 필요
+routes = [
+  { pattern = "storage.cloud-press.co.kr/*", custom_domain = true }
+]
+
+[[kv_namespaces]]
+binding = "CHUNKS"
+id = "REPLACE_WITH_KV_ID"
+
+[[kv_namespaces]]
+binding = "CREDENTIALS"
+id = "REPLACE_WITH_KV_ID"
+
+[[d1_databases]]
+binding = "META_DB"
+database_name = "cloudpress-storage-meta"
+database_id = "REPLACE_WITH_D1_ID"
+
+[[durable_objects.bindings]]
+name = "WP_DB"
+class_name = "WordPressDbDO"
+
+[[durable_objects.bindings]]
+name = "LOAD_BALANCER"
+class_name = "LoadBalancerDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["WordPressDbDO", "LoadBalancerDO"]
+
+[vars]
+STORAGE_BASE_URL = "https://storage.cloud-press.co.kr"
+TEMPLATE_API_KEY = "REPLACE_WITH_SECRET"  # wrangler secret put TEMPLATE_API_KEY
+SMALL_OBJECT_THRESHOLD = "65536"

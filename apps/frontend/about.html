@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>소개 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<nav class="nav">
+  <a class="nav-logo" href="/"><span>Cloud</span>Press</a>
+  <div class="nav-links">
+    <a class="nav-link" href="/feature.html">기능</a>
+    <a class="nav-link" href="/products/wordpress-hosting.html">호스팅</a>
+    <a class="nav-link" href="/products/dns.html">DNS</a>
+    <a class="nav-link" href="/about.html">소개</a>
+    <a class="btn btn-ghost btn-sm" href="/sign-in.html">로그인</a>
+    <a class="btn btn-primary btn-sm" href="/sign-up.html">무료 시작</a>
+  </div>
+</nav>
+
+<section class="section">
+  <div class="section-inner" style="max-width:720px">
+    <p class="section-label">About</p>
+    <h1 class="section-title">왜 CloudPress Bridge인가</h1>
+    <p class="section-desc" style="margin-top:var(--sp-6)">
+      CloudPress Bridge는 한 가지 전제에서 시작했습니다.
+      <strong>자본금 제로, 외부 의존 제로</strong>로도 프로덕션 수준의 워드프레스 호스팅을 운영할 수 있다.
+    </p>
+
+    <hr class="divider">
+
+    <div style="display:flex;flex-direction:column;gap:var(--sp-8)">
+      <div>
+        <div class="fw-600" style="margin-bottom:var(--sp-2)">기술 스택에 대하여</div>
+        <p class="text-muted" style="line-height:1.8">
+          Cloudflare Workers, KV, Durable Objects(SQLite), PHP-WASM만으로 구성됩니다.
+          R2도, AWS S3도, 외부 MySQL도, GitHub 저장소도 없습니다.
+          파일은 자체 제작 S3 호환 스토리지(KV 청크 엔진)에, DB는 Durable Object 내장 SQLite에,
+          그리고 워드프레스 런타임은 Workers 위의 PHP-WASM에 올라갑니다.
+        </p>
+      </div>
+      <div>
+        <div class="fw-600" style="margin-bottom:var(--sp-2)">아키텍처 선택에 대하여</div>
+        <p class="text-muted" style="line-height:1.8">
+          Durable Objects는 Durable Objects대로, KV는 KV대로 각자 잘하는 일에 집중합니다.
+          메타데이터 인덱스는 DO 내장 SQLite가, 실제 바이트 데이터는 KV 청크 엔진이,
+          관계형 사용자/결제 데이터는 D1이 담당합니다.
+          Workers 10개를 호스팅당 할당해 LoadBalancerDO가 헬스체크와 라운드로빈을 처리합니다.
+        </p>
+      </div>
+      <div>
+        <div class="fw-600" style="margin-bottom:var(--sp-2)">가격에 대하여</div>
+        <p class="text-muted" style="line-height:1.8">
+          라이트 $15, 스탠다드 $30, 스마트 $49. 호스팅 단위 월정액입니다.
+          DNS는 Zone당 $0.10, 쿼리당 $0.09를 추가로 부과합니다.
+          모든 플랜은 PayPal 단건 결제로 처리됩니다.
+        </p>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div style="text-align:center">
+      <a class="btn btn-primary btn-lg" href="/sign-up.html">지금 시작하기</a>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <span><strong>CloudPress Bridge</strong></span>
+    <div class="flex gap-6">
+      <a href="/feature.html">기능</a>
+      <a href="/products/wordpress-hosting.html">호스팅</a>
+      <a href="/products/dns.html">DNS</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

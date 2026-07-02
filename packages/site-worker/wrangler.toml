@@ -1,0 +1,35 @@
+name = "cloudpress-site-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 호스팅 생성 시 --name {siteId}-w{0~9} 으로 오버라이드해 10개 배포
+
+[[services]]
+binding = "STORAGE_WORKER"
+service = "cloudpress-storage"
+
+[[durable_objects.bindings]]
+name = "PHP_RUNTIME"
+class_name = "PhpRuntimeDO"
+
+[[durable_objects.bindings]]
+name = "STORAGE_INDEX"
+class_name = "StorageIndexDO"
+script_name = "cloudpress-storage"
+
+[[durable_objects.bindings]]
+name = "LOAD_BALANCER"
+class_name = "LoadBalancerDO"
+script_name = "cloudpress-storage"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["PhpRuntimeDO"]
+
+[vars]
+SITE_ID          = "REPLACE_AT_DEPLOY_TIME"
+WORKER_INDEX     = "0"
+STORAGE_BASE_URL = "https://storage.cloud-press.co.kr"
+
+# wrangler secret put STORAGE_API_KEY --name {siteId}-w{n}
