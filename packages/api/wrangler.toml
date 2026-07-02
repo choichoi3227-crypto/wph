@@ -10,7 +10,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "cloudpress-bridge"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "6a240f3d-304e-4e04-9fa3-ee224ab71e4b"
 
 # cloudpress-storage Worker를 Service Binding으로 연결
 # HTTP 왕복 없이 Worker 내부에서 직접 호출 (같은 Cloudflare 네트워크)
