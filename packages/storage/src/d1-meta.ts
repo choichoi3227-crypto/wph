@@ -254,6 +254,11 @@ export async function siteCreate(
     .run();
 }
 
+export async function siteExists(db: D1Database, siteId: string): Promise<boolean> {
+  const row = await db.prepare("SELECT 1 FROM sites WHERE site_id = ?").bind(siteId).first();
+  return !!row;
+}
+
 export async function siteUsage(
   db: D1Database,
   siteId: string
