@@ -1,12 +1,38 @@
 import type { Env } from "./types";
 import { provisionCredentials, revokeCredentials } from "./auth";
-import { siteCreate, siteUsage, metaList } from "./d1-meta";
+import { siteCreate, siteExists, siteUsage, metaList } from "./d1-meta";
 import { deleteObject } from "./chunk-engine";
 import type { ObjectMeta } from "./types";
+import { handleGet, handlePut } from "./object-handlers";
 
 export async function handleInternal(request: Request, env: Env): Promise<Response> {
   const url  = new URL(request.url);
   const path = url.pathname;
+
+  // site-worker가 요청 시점에 siteId 유효성(존재 여부)을 확인하는 경로.
+  //   /internal/site-exists?siteId={siteId}
+  if (path === "/internal/site-exists" && request.method === "GET") {
+    const siteId = url.searchParams.get("siteId") ?? "";
+    if (!siteId) return json({ error: "missing siteId" }, 400);
+    const exists = await siteExists(env.META_DB, siteId);
+    return json({ exists });
+  }
+
+  // site-worker가 정적 파일을 가져오거나(php.wasm 등) 캐시해 쓸 때 쓰는 내부 전용 경로.
+  // 공개 S3 호환 엔드포인트(Bearer API 키)를 거치지 않고
+  // Service Binding + INTERNAL_SHARED_SECRET로만 접근 가능.
+  //   GET/PUT /internal/static/{siteId}/{...key}
+  if (path.startsWith("/internal/static/") && (request.method === "GET" || request.method === "PUT")) {
+    const rest = path.slice("/internal/static/".length);
+    const segments = rest.split("/").filter(Boolean);
+    if (!segments.length) return json({ error: "missing siteId" }, 400);
+    const siteId = segments[0];
+    const objectKey = decodeURIComponent(segments.slice(1).join("/"));
+    if (!objectKey) return json({ error: "missing object key" }, 400);
+    return request.method === "GET"
+      ? handleGet(request, env, siteId, objectKey)
+      : handlePut(request, env, siteId, objectKey);
+  }
 
   if (path === "/internal/provision" && request.method === "POST") {
     const body = await request.json() as {
