@@ -3,10 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 커스텀 도메인 — Cloudflare DNS에서 CNAME 설정 필요
-routes = [
-  { pattern = "storage.cloud-press.co.kr/*", custom_domain = true }
-]
+# 라우트/커스텀 도메인은 wrangler.toml이 아니라 Cloudflare 대시보드
+# (Workers & Pages → cloudpress-storage → Settings → Domains & Routes)에서 직접 설정.
+# 필요한 라우트: storage.cloud-press.co.kr/* → Custom Domain
 
 [[kv_namespaces]]
 binding = "CHUNKS"

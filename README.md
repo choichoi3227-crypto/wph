@@ -145,30 +145,25 @@ Pages Function이 `cloud-press.co.kr/api/*` 요청을 내부적으로 `api.cloud
 전달(proxy)한다. 브라우저는 항상 같은 오리진(cloud-press.co.kr)하고만 통신하므로 별도 CORS
 설정 없이 쿠키 인증이 그대로 동작한다.
 
-### Pages에 루트 도메인 연결 (최초 1회, 수동)
+### 대시보드에서 직접 연결해야 하는 라우트
 
-```bash
-cd apps/frontend
-wrangler pages project create cloudpress-bridge   # 최초 1회
-wrangler pages domain add cloud-press.co.kr     --project-name=cloudpress-bridge
-wrangler pages domain add www.cloud-press.co.kr --project-name=cloudpress-bridge
-```
+라우트/커스텀 도메인은 더 이상 `wrangler.toml`이나 배포 스크립트가 자동으로 건드리지 않는다.
+Cloudflare 대시보드에서 아래 표대로 직접 연결한다.
 
-Cloudflare 대시보드 → Pages → cloudpress-bridge → Custom domains 에서도 동일하게 추가 가능.
-`www` → 루트 리다이렉트는 Cloudflare 대시보드의 Bulk Redirects 또는 Pages 프로젝트의
-"Redirect www to root" 옵션으로 설정한다.
+| 대상 | 위치 | 설정 | 값 |
+|---|---|---|---|
+| packages/api | Workers & Pages → **cloudpress-api** → Settings → Domains & Routes | Custom Domain 추가 | `api.cloud-press.co.kr` |
+| packages/storage | Workers & Pages → **cloudpress-storage** → Settings → Domains & Routes | Custom Domain 추가 | `storage.cloud-press.co.kr` |
+| apps/frontend | Workers & Pages → Pages → **cloudpress-bridge** → Custom domains | Custom Domain 추가 | `cloud-press.co.kr` (+ `www.cloud-press.co.kr`, 루트로 리다이렉트되도록) |
+| packages/site-worker (호스팅당) | Workers & Pages → **{siteId}-w0** → Settings → Domains & Routes | Route 추가 (zone: `cloud-press.co.kr`) | `{siteId}.cloud-press.co.kr/*` |
 
-### 호스팅 사이트 서브도메인({siteId}.cloud-press.co.kr) 연결
-
-`deploy/deploy.sh worker` 로 사이트 Worker(10개)를 배포한 뒤, 아래처럼 `w0`(공개 진입점)에
-호스팅 서브도메인 라우트를 등록해야 실제로 트래픽이 들어온다. 나머지 `w1~w9`는 향후 로드밸런싱
-확장용으로 `workers.dev`에서만 접근 가능한 상태로 남겨둔다.
-
-```bash
-# *.cloud-press.co.kr 와일드카드 DNS 레코드가 프록시(주황 구름) 상태로 미리 존재해야 함
-wrangler deploy --name "${SITE_ID}-w0" \
-  --route "${SITE_ID}.cloud-press.co.kr/*"
-```
+- `{siteId}-w0`만 공개 라우트를 갖는다. `{siteId}-w1`~`{siteId}-w9`는 공개 라우트 없이 `workers.dev`로만
+  접근 가능한 상태로 둔다(향후 로드밸런싱 확장용).
+- `{siteId}.cloud-press.co.kr` 라우트를 붙이려면 먼저 DNS에 `*.cloud-press.co.kr` 와일드카드 레코드
+  (프록시 On, 임의의 A 레코드로 충분 — 예: `192.0.2.1`)가 zone에 존재해야 한다.
+- 호스팅이 새로 생성될 때마다(`POST /api/hostings`) 해당 `{siteId}-w0`에 라우트를 수동으로 추가해야
+  실제로 사이트가 열린다는 뜻이다. 자동화하려면 Cloudflare API(`PUT /zones/{zone_id}/workers/routes`)를
+  호출하는 코드를 추후 추가해야 한다.
 
 ---
 
