@@ -123,8 +123,52 @@ bash deploy/deploy.sh seed
 |---|---|---|
 | 스토리지 | storage.cloud-press.co.kr | S3 호환 오브젝트 스토리지 |
 | API | api.cloud-press.co.kr | 호스팅/DNS/결제 REST API |
-| 프론트엔드 | (Cloudflare Pages URL) | 랜딩 + 대시보드 |
-| 사이트 | {siteId}.cloudpress.app | 호스팅된 WordPress |
+| 프론트엔드 | cloud-press.co.kr (루트/메인 도메인) | 랜딩 + 대시보드 (Cloudflare Pages) |
+| 사이트 | {siteId}.cloud-press.co.kr | 호스팅된 WordPress |
+
+---
+
+## 도메인 구조 (cloud-press.co.kr = 루트/메인 도메인)
+
+```
+cloud-press.co.kr            ← 루트 도메인. 랜딩 + 대시보드 (Cloudflare Pages, apps/frontend)
+www.cloud-press.co.kr        ← cloud-press.co.kr 로 리다이렉트
+api.cloud-press.co.kr        ← packages/api (Worker, custom_domain)
+storage.cloud-press.co.kr    ← packages/storage (Worker, custom_domain)
+{siteId}.cloud-press.co.kr   ← 호스팅된 WordPress 사이트 (packages/site-worker)
+```
+
+**주의**: `apps/frontend/js/common.js`는 `/api`라는 상대경로로만 요청한다. 브라우저가
+`cloud-press.co.kr`과 `api.cloud-press.co.kr`을 서로 다른 오리진으로 취급하기 때문에,
+그대로 두면 세션 쿠키가 붙지 않고 CORS 에러가 난다. 그래서 `apps/frontend/functions/api/[[path]].js`
+Pages Function이 `cloud-press.co.kr/api/*` 요청을 내부적으로 `api.cloud-press.co.kr`로 그대로
+전달(proxy)한다. 브라우저는 항상 같은 오리진(cloud-press.co.kr)하고만 통신하므로 별도 CORS
+설정 없이 쿠키 인증이 그대로 동작한다.
+
+### Pages에 루트 도메인 연결 (최초 1회, 수동)
+
+```bash
+cd apps/frontend
+wrangler pages project create cloudpress-bridge   # 최초 1회
+wrangler pages domain add cloud-press.co.kr     --project-name=cloudpress-bridge
+wrangler pages domain add www.cloud-press.co.kr --project-name=cloudpress-bridge
+```
+
+Cloudflare 대시보드 → Pages → cloudpress-bridge → Custom domains 에서도 동일하게 추가 가능.
+`www` → 루트 리다이렉트는 Cloudflare 대시보드의 Bulk Redirects 또는 Pages 프로젝트의
+"Redirect www to root" 옵션으로 설정한다.
+
+### 호스팅 사이트 서브도메인({siteId}.cloud-press.co.kr) 연결
+
+`deploy/deploy.sh worker` 로 사이트 Worker(10개)를 배포한 뒤, 아래처럼 `w0`(공개 진입점)에
+호스팅 서브도메인 라우트를 등록해야 실제로 트래픽이 들어온다. 나머지 `w1~w9`는 향후 로드밸런싱
+확장용으로 `workers.dev`에서만 접근 가능한 상태로 남겨둔다.
+
+```bash
+# *.cloud-press.co.kr 와일드카드 DNS 레코드가 프록시(주황 구름) 상태로 미리 존재해야 함
+wrangler deploy --name "${SITE_ID}-w0" \
+  --route "${SITE_ID}.cloud-press.co.kr/*"
+```
 
 ---
 

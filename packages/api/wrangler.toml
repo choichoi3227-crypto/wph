@@ -28,3 +28,4 @@ PAYPAL_ENV       = "sandbox"   # 라이브 전환 시 "live"로 변경
 #   CF_API_TOKEN           Cloudflare Zone/DNS API 토큰
 #   PAYPAL_CLIENT_ID
 #   PAYPAL_CLIENT_SECRET
+#   INTERNAL_SHARED_SECRET packages/storage와 동일한 값 (openssl rand -hex 32 등으로 생성)

@@ -67,7 +67,7 @@
       <label class="form-label" for="subdomain">서브도메인</label>
       <div style="display:flex;align-items:center;gap:var(--sp-2)">
         <input class="form-input" id="subdomain" type="text" placeholder="my-blog" style="flex:1">
-        <span class="text-muted text-sm" style="white-space:nowrap">.cloudpress.app</span>
+        <span class="text-muted text-sm" style="white-space:nowrap">.cloud-press.co.kr</span>
       </div>
       <div class="form-hint">영문 소문자, 숫자, 하이픈만 가능 (3~40자)</div>
     </div>
@@ -128,13 +128,13 @@ async function loadHostings() {
     <div class="card" style="display:flex;align-items:center;gap:var(--sp-6);flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
         <div class="fw-600" style="margin-bottom:var(--sp-1)">${h.site_name}</div>
-        <div class="text-sm text-muted font-mono">${h.site_url || `https://${h.id}.cloudpress.app`}</div>
+        <div class="text-sm text-muted font-mono">${h.site_url || `https://${h.id}.cloud-press.co.kr`}</div>
       </div>
       <div style="display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap">
         <span class="badge ${STATUS_BADGE[h.status] || 'badge-blue'}">${STATUS_LABEL[h.status] || h.status}</span>
         <span class="text-xs text-muted">${h.plan_id} 플랜</span>
         <span class="text-xs text-muted">${fmtDate(h.created_at)}</span>
-        <a class="btn btn-ghost btn-sm" href="https://${h.id}.cloudpress.app" target="_blank">방문</a>
+        <a class="btn btn-ghost btn-sm" href="https://${h.id}.cloud-press.co.kr" target="_blank">방문</a>
         <button class="btn btn-ghost btn-sm" onclick="deleteHosting('${h.id}')">삭제</button>
       </div>
     </div>

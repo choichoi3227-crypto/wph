@@ -47,7 +47,16 @@ export default {
     }
 
     // ── 내부 API (Service Binding 전용) ──────────────────────────────
+    // 주의: 이 Worker는 storage.cloud-press.co.kr 로도 공개 노출되므로,
+    // 시크릿 헤더 없이 /internal/* 를 그냥 열어두면 누구나 사이트를 생성/삭제할 수 있다.
     if (path.startsWith("/internal/")) {
+      const provided = request.headers.get("x-internal-secret") ?? "";
+      if (!env.INTERNAL_SHARED_SECRET || provided !== env.INTERNAL_SHARED_SECRET) {
+        return new Response(JSON.stringify({ error: "forbidden" }), {
+          status: 403,
+          headers: { "content-type": "application/json" },
+        });
+      }
       return handleInternal(request, env);
     }
 

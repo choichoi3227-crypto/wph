@@ -12,6 +12,9 @@ export interface Env {
   STORAGE_BASE_URL: string;
   TEMPLATE_API_KEY: string;
   SMALL_OBJECT_THRESHOLD: string; // 문자열로 바인딩됨
+  // secret — /internal/* 는 packages/api의 Service Binding 호출만 허용해야 하므로
+  // 공개 도메인(storage.cloud-press.co.kr)으로 직접 오는 요청은 이 값으로 차단한다.
+  INTERNAL_SHARED_SECRET: string;
 }
 
 /** 소용량 객체 기준 (기본 64KB) */

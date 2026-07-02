@@ -11,7 +11,7 @@ export async function handleCreateHosting(
 ): Promise<Response> {
   const body = (await request.json().catch(() => null)) as {
     siteName?: string;
-    subdomain?: string; // {subdomain}.cloudpress.app 형태로 발급
+    subdomain?: string; // {subdomain}.cloud-press.co.kr 형태로 발급
     planId?: string;
     locale?: string;
   } | null;
@@ -30,7 +30,7 @@ export async function handleCreateHosting(
   const existing = await env.DB.prepare("SELECT id FROM hostings WHERE id = ?").bind(siteId).first();
   if (existing) return errorResponse("subdomain already taken", 409);
 
-  const siteUrl = `https://${siteId}.cloudpress.app`;
+  const siteUrl = `https://${siteId}.cloud-press.co.kr`;
 
   await env.DB.prepare(
     `INSERT INTO hostings (id, user_id, plan_id, site_name, site_url, locale, status)
@@ -41,9 +41,12 @@ export async function handleCreateHosting(
 
   // 실제 워드프레스 파일 적재(템플릿 복제) + 자격증명 발급은 cloudpress-storage 워크플로우 호출.
   // 시간이 걸릴 수 있으므로 비동기로 진행하고, 상태는 DB의 status 컬럼으로 폴링한다.
-  const provisionRes = await env.STORAGE_WORKER.fetch("https://internal/provision-hosting", {
+  const provisionRes = await env.STORAGE_WORKER.fetch("https://internal/internal/provision", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-internal-secret": env.INTERNAL_SHARED_SECRET,
+    },
     body: JSON.stringify({
       siteId,
       siteName: body.siteName,
@@ -104,9 +107,12 @@ export async function handleDeleteHosting(env: Env, user: AuthedUser, hostingId:
     .run();
 
   // 스토리지 데이터 정리는 STORAGE_WORKER에 비동기 위임 (자격증명 폐기 + 객체 삭제)
-  await env.STORAGE_WORKER.fetch("https://internal/deprovision-hosting", {
+  await env.STORAGE_WORKER.fetch("https://internal/internal/deprovision", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-internal-secret": env.INTERNAL_SHARED_SECRET,
+    },
     body: JSON.stringify({ siteId: hostingId }),
   });
 

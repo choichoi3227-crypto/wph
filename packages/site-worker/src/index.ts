@@ -131,7 +131,7 @@ function phpErrorPage(message: string): Response {
   <h1>500 — PHP 실행 오류</h1>
   <pre>${escapeHtml(message)}</pre>
   <p style="margin-top:1rem;color:#7a94b0;font-size:.8rem">
-    오류가 지속되면 <a href="https://cloudpress.io/dashboard" style="color:#3b82f6">대시보드</a>를 통해 지원팀에 문의하세요.
+    오류가 지속되면 <a href="https://cloud-press.co.kr/dashboard/index.html" style="color:#3b82f6">대시보드</a>를 통해 지원팀에 문의하세요.
   </p>
 </div></body></html>`;
   return new Response(html, {

@@ -37,3 +37,6 @@ new_sqlite_classes = ["WordPressDbDO", "LoadBalancerDO"]
 STORAGE_BASE_URL = "https://storage.cloud-press.co.kr"
 TEMPLATE_API_KEY = "REPLACE_WITH_SECRET"  # wrangler secret put TEMPLATE_API_KEY
 SMALL_OBJECT_THRESHOLD = "65536"
+
+# wrangler secret put INTERNAL_SHARED_SECRET --name cloudpress-storage
+# packages/api 의 동일 이름 시크릿과 반드시 같은 값이어야 함 (/internal/* 보호용)

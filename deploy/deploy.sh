@@ -45,7 +45,10 @@ deploy_frontend() {
   info "━━━ [3/4] apps/frontend 배포 ━━━"
   cd "$ROOT/apps/frontend"
   wrangler pages deploy . --project-name=cloudpress-bridge --branch=main
-  ok "frontend 완료 → Cloudflare Pages"
+  # 루트 도메인 연결 (최초 1회면 충분 — 이미 연결돼 있으면 실패해도 무시)
+  wrangler pages domain add cloud-press.co.kr     --project-name=cloudpress-bridge 2>/dev/null || true
+  wrangler pages domain add www.cloud-press.co.kr --project-name=cloudpress-bridge 2>/dev/null || true
+  ok "frontend 완료 → https://cloud-press.co.kr"
 }
 
 deploy_worker() {
@@ -57,10 +60,19 @@ deploy_worker() {
   for i in $(seq 0 9); do
     WNAME="${SITE_ID}-w${i}"
     info "  $WNAME"
-    wrangler deploy --name "$WNAME" \
-      --var "SITE_ID:${SITE_ID}" --var "WORKER_INDEX:${i}"
+    if [[ "$i" == "0" ]]; then
+      # w0 = 공개 진입점. {SITE_ID}.cloud-press.co.kr 요청을 실제로 받는 Worker.
+      # *.cloud-press.co.kr 와일드카드 DNS 레코드(프록시 On)가 미리 존재해야 함.
+      wrangler deploy --name "$WNAME" \
+        --var "SITE_ID:${SITE_ID}" --var "WORKER_INDEX:${i}" \
+        --route "${SITE_ID}.cloud-press.co.kr/*"
+    else
+      # w1~w9 = 내부/확장용. 현재는 공개 라우트 없이 workers.dev 로만 접근 가능.
+      wrangler deploy --name "$WNAME" \
+        --var "SITE_ID:${SITE_ID}" --var "WORKER_INDEX:${i}"
+    fi
   done
-  ok "Workers 10개 완료"
+  ok "Workers 10개 완료 → https://${SITE_ID}.cloud-press.co.kr"
 }
 
 setup_infra() {
@@ -74,13 +86,18 @@ setup_infra() {
 
 setup_secrets() {
   cat << 'EOF'
+# 두 값(INTERNAL_SHARED_SECRET)은 반드시 동일해야 함. 먼저 하나 생성:
+#   openssl rand -hex 32
+
 # packages/storage
 wrangler secret put TEMPLATE_API_KEY       --name cloudpress-storage
+wrangler secret put INTERNAL_SHARED_SECRET --name cloudpress-storage
 
 # packages/api
 wrangler secret put CF_API_TOKEN           --name cloudpress-api
 wrangler secret put PAYPAL_CLIENT_ID       --name cloudpress-api
 wrangler secret put PAYPAL_CLIENT_SECRET   --name cloudpress-api
+wrangler secret put INTERNAL_SHARED_SECRET --name cloudpress-api
 
 # packages/site-worker (호스팅당 10개)
 for i in $(seq 0 9); do

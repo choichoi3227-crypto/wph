@@ -104,7 +104,7 @@ export class PhpRuntimeDO {
     this.handler = new PHPRequestHandler({
       php:          this.php,
       documentRoot: DOC_ROOT,
-      absoluteUrl:  `https://${this.env.SITE_ID}.cloudpress.app`,
+      absoluteUrl:  `https://${this.env.SITE_ID}.cloud-press.co.kr`,
       rewriteRules: [
         // WordPress 퍼머링크: wp-admin/wp-content/wp-includes 외 모든 경로는 index.php로
         {

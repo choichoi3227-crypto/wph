@@ -8,6 +8,8 @@ export interface Env {
   PAYPAL_ENV: "sandbox" | "live";
   PAYPAL_CLIENT_ID: string;
   PAYPAL_CLIENT_SECRET: string;
+  // storage 워커 /internal/* 호출 시 사용하는 공유 시크릿 (storage 워커와 동일한 값이어야 함)
+  INTERNAL_SHARED_SECRET: string;
 }
 
 export function uuid(): string {
