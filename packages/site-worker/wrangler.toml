@@ -3,7 +3,14 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 호스팅 생성 시 --name {siteId}-w{0~9} 으로 오버라이드해 10개 배포
+# 모든 사이트를 이 Worker 하나가 서빙한다 (사이트 생성 시 재배포/재라우트 불필요).
+# Host 헤더에서 siteId를 파싱해 PhpRuntimeDO(idFromName)로 사이트별 격리.
+# 최초 1회만 아래를 준비해두면 이후 사이트가 몇 개든 자동으로 서빙된다:
+#   1) DNS: *.cloud-press.co.kr → 프록시됨(오렌지 클라우드) A/CNAME 레코드
+#   2) 아래 [[routes]] 로 와일드카드 라우트 등록 (배포 시 자동 적용)
+[[routes]]
+pattern = "*.cloud-press.co.kr/*"
+zone_name = "cloud-press.co.kr"
 
 [[services]]
 binding = "STORAGE_WORKER"
@@ -13,23 +20,13 @@ service = "cloudpress-storage"
 name = "PHP_RUNTIME"
 class_name = "PhpRuntimeDO"
 
-[[durable_objects.bindings]]
-name = "STORAGE_INDEX"
-class_name = "StorageIndexDO"
-script_name = "cloudpress-storage"
-
-[[durable_objects.bindings]]
-name = "LOAD_BALANCER"
-class_name = "LoadBalancerDO"
-script_name = "cloudpress-storage"
-
 [[migrations]]
 tag = "v1"
 new_classes = ["PhpRuntimeDO"]
 
 [vars]
-SITE_ID          = "REPLACE_AT_DEPLOY_TIME"
-WORKER_INDEX     = "0"
 STORAGE_BASE_URL = "https://storage.cloud-press.co.kr"
+ROOT_ZONE        = "cloud-press.co.kr"
 
-# wrangler secret put STORAGE_API_KEY --name {siteId}-w{n}
+# wrangler secret put INTERNAL_SHARED_SECRET --name cloudpress-site-worker
+# packages/storage, packages/api 와 동일한 값이어야 함
