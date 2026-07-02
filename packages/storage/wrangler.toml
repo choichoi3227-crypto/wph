@@ -9,16 +9,16 @@ compatibility_flags = ["nodejs_compat"]
 
 [[kv_namespaces]]
 binding = "CHUNKS"
-id = "REPLACE_WITH_KV_ID"
+id = "e43b498e58dc423094d46cebbb1c1f01"
 
 [[kv_namespaces]]
 binding = "CREDENTIALS"
-id = "REPLACE_WITH_KV_ID"
+id = "4c5483498989466993a9d75ecaabbdd9"
 
 [[d1_databases]]
 binding = "META_DB"
 database_name = "cloudpress-storage-meta"
-database_id = "REPLACE_WITH_D1_ID"
+database_id = "7f962d8c-7a3c-49de-ae2c-974cf63eec74"
 
 [[durable_objects.bindings]]
 name = "WP_DB"
