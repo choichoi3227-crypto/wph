@@ -72,10 +72,14 @@ export class PhpRuntimeDO {
     const wasmModule = await WebAssembly.compile(wasmBytes);
 
     // 2) PHPLoaderModule 구성 — asyncify/php_8_2.js init 함수 사용
+    //    최신 @php-wasm/web-8-2의 exports map은 서브패스를 막고 있고,
+    //    공개 진입점(getPHPLoaderModule)은 브라우저 전용 jspi/intl.so 분기까지
+    //    끌어들여 Workers esbuild가 번들링할 수 없으므로,
+    //    패키지 exports map을 우회해 실제 파일 경로를 직접 import.
     //    타입 선언이 없으므로 dynamic import + any cast
     const loaderJs = await import(
       /* @vite-ignore */
-      "@php-wasm/web-8-2/asyncify/php_8_2.js" as string
+      "../../../node_modules/@php-wasm/web-8-2/asyncify/php_8_2.js" as string
     ) as { init: PHPLoaderModule["init"]; dependencyFilename: string; dependenciesTotalSize: number };
 
     const phpLoaderModule: PHPLoaderModule = {
