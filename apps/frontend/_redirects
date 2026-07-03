@@ -1,1 +1,2 @@
-https://www.cloud-press.co.kr/* https://cloud-press.co.kr/:splat 301
+# www → apex 리다이렉트는 호스트 기반이라 _redirects(상대 경로만 허용)로 표현 불가.
+# apps/frontend/src/index.js 워커에서 처리한다.
