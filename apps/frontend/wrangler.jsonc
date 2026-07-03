@@ -7,6 +7,12 @@
     "binding": "ASSETS",
     "not_found_handling": "404-page"
   },
+  "services": [
+    {
+      "binding": "API_WORKER",
+      "service": "cloudpress-api"
+    }
+  ],
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,
