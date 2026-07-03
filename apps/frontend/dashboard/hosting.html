@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>호스팅 상세 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+<style>
+  .tab-bar { display: flex; gap: var(--sp-2); overflow-x: auto; border-bottom: 1px solid var(--border); margin-bottom: var(--sp-6); }
+  .tab-btn { background: none; border: none; color: var(--text-muted); padding: var(--sp-3) var(--sp-4); font-size: var(--sz-sm); cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; }
+  .tab-btn.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+  .kv-row { display: flex; justify-content: space-between; padding: var(--sp-3) 0; border-bottom: 1px solid var(--border); font-size: var(--sz-sm); }
+  .kv-row:last-child { border-bottom: none; }
+  .log-line { font-family: var(--font-mono); font-size: var(--sz-xs); padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border); white-space: pre-wrap; word-break: break-all; }
+  .log-line.error { color: var(--red); }
+  .sql-box { width: 100%; min-height: 100px; font-family: var(--font-mono); font-size: var(--sz-sm); background: var(--bg-card2); border: 1px solid var(--border); border-radius: var(--r-sm); color: var(--text); padding: var(--sp-3); }
+  @media (max-width: 768px) { .kv-row { flex-direction: column; gap: var(--sp-1); } }
+</style>
+</head>
+<body>
+<div class="db-layout">
+
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press</div>
+    <nav class="db-nav">
+      <div class="db-nav-section">메인</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">⊞</span> 호스팅</a>
+      <a class="db-nav-link" href="/dashboard/domains.html"><span class="icon">🌐</span> 도메인</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/billing.html"><span class="icon">💳</span> 청구</a>
+      <a class="db-nav-link" href="/dashboard/my-information.html"><span class="icon">👤</span> 내 정보</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main class="db-main">
+    <div class="db-topbar">
+      <div>
+        <a href="/dashboard/index.html" class="text-sm text-muted">← 호스팅 목록</a>
+        <div class="db-topbar-title" id="page-title">불러오는 중...</div>
+      </div>
+      <a class="btn btn-ghost btn-sm" id="visit-link" href="#" target="_blank">사이트 방문</a>
+    </div>
+    <div class="db-content">
+
+      <div id="loading" class="text-muted text-sm">불러오는 중...</div>
+
+      <div id="detail-body" class="hidden">
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">개요</button>
+          <button class="tab-btn" data-tab="sites" onclick="switchTab('sites')">사이트</button>
+          <button class="tab-btn" data-tab="logs" onclick="switchTab('logs')">로그</button>
+          <button class="tab-btn" data-tab="storage" onclick="switchTab('storage')">스토리지</button>
+          <button class="tab-btn" data-tab="db" onclick="switchTab('db')">DB 접속</button>
+          <button class="tab-btn" data-tab="manage" onclick="switchTab('manage')">관리</button>
+          <button class="tab-btn" data-tab="updates" onclick="switchTab('updates')">업데이트</button>
+          <button class="tab-btn" data-tab="certs" onclick="switchTab('certs')">인증서</button>
+          <button class="tab-btn" data-tab="backups" onclick="switchTab('backups')">백업</button>
+          <button class="tab-btn" data-tab="traffic" onclick="switchTab('traffic')">트래픽</button>
+          <button class="tab-btn" data-tab="plan" onclick="switchTab('plan')">플랜</button>
+        </div>
+
+        <!-- 개요 -->
+        <div class="tab-panel active" id="tab-overview">
+          <div class="card">
+            <div id="overview-kv"></div>
+          </div>
+        </div>
+
+        <!-- 사이트 (멀티사이트) -->
+        <div class="tab-panel" id="tab-sites">
+          <div class="card" style="margin-bottom:var(--sp-6)">
+            <div class="fw-600" style="margin-bottom:var(--sp-4)">새 사이트 추가</div>
+            <div class="text-sm text-muted" style="margin-bottom:var(--sp-4)">호스팅은 인프라일 뿐이며, 그 안에 여러 개의 독립된 워드프레스 사이트를 둘 수 있습니다.</div>
+            <div class="form-group">
+              <label class="form-label" for="new-site-name">사이트 이름</label>
+              <input class="form-input" id="new-site-name" placeholder="두 번째 블로그">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="new-site-domain">연결할 도메인 (선택)</label>
+              <select class="form-input" id="new-site-domain" onchange="toggleSubdomainLabel()">
+                <option value="">난수 서브도메인 자동 생성 (*.cloud-press.co.kr)</option>
+              </select>
+            </div>
+            <div class="form-group hidden" id="subdomain-label-group">
+              <label class="form-label" for="new-site-label">서브도메인 이름</label>
+              <div style="display:flex;align-items:center;gap:var(--sp-2)">
+                <input class="form-input" id="new-site-label" placeholder="blog" style="flex:1">
+                <span class="text-muted text-sm" id="subdomain-domain-suffix"></span>
+              </div>
+              <div class="form-hint">도메인 상세 페이지의 "서브도메인" 탭에서도 동일하게 관리할 수 있습니다.</div>
+            </div>
+            <button class="btn btn-primary" onclick="createSite()">사이트 만들기</button>
+          </div>
+          <div id="sites-list" style="display:flex;flex-direction:column;gap:var(--sp-3)"></div>
+        </div>
+
+        <!-- 로그 -->
+        <div class="tab-panel" id="tab-logs">
+          <div class="card" style="padding:0">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:var(--sp-4)">
+              <span class="fw-600 text-sm">최근 로그</span>
+              <button class="btn btn-ghost btn-sm" onclick="loadLogs()">새로고침</button>
+            </div>
+            <div id="logs-list" style="max-height:520px;overflow-y:auto;border-top:1px solid var(--border)"></div>
+          </div>
+        </div>
+
+        <!-- 스토리지 -->
+        <div class="tab-panel" id="tab-storage">
+          <div class="card"><div id="storage-kv"></div></div>
+        </div>
+
+        <!-- DB 접속 -->
+        <div class="tab-panel" id="tab-db">
+          <div class="alert alert-info" style="margin-bottom:var(--sp-6)">이 콘솔은 <b>이 호스팅의 데이터베이스에만</b> 접속합니다. 다른 사용자의 DB에는 API 수준에서 접근이 차단됩니다.</div>
+          <div class="card" style="margin-bottom:var(--sp-6)">
+            <div style="display:flex;gap:var(--sp-3);margin-bottom:var(--sp-4)">
+              <button class="btn btn-ghost btn-sm" onclick="listTables()">테이블 목록 보기</button>
+            </div>
+            <textarea class="sql-box" id="sql-input" placeholder="SELECT * FROM wp_posts LIMIT 10;"></textarea>
+            <div style="margin-top:var(--sp-3)">
+              <button class="btn btn-primary btn-sm" onclick="runQuery()">쿼리 실행</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="fw-600 text-sm" style="margin-bottom:var(--sp-3)">결과</div>
+            <pre id="db-result" class="text-xs font-mono" style="white-space:pre-wrap;word-break:break-all">쿼리를 실행하면 여기에 표시됩니다.</pre>
+          </div>
+        </div>
+
+        <!-- 관리(캐시) -->
+        <div class="tab-panel" id="tab-manage">
+          <div class="card" style="margin-bottom:var(--sp-6)">
+            <div class="fw-600" style="margin-bottom:var(--sp-2)">캐시 초기화</div>
+            <div class="text-sm text-muted" style="margin-bottom:var(--sp-4)">워드프레스 오브젝트 캐시만 비우거나, Cloudflare 전체 캐시(워드프레스 포함)를 비울 수 있습니다.</div>
+            <div style="display:flex;gap:var(--sp-3);flex-wrap:wrap">
+              <button class="btn btn-ghost" onclick="purgeWp()">워드프레스 캐시만 초기화</button>
+              <button class="btn btn-primary" onclick="purgeCf()">Cloudflare 전체 캐시 초기화</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 업데이트 -->
+        <div class="tab-panel" id="tab-updates">
+          <div class="card"><div id="updates-list" class="text-sm text-muted">불러오는 중...</div></div>
+        </div>
+
+        <!-- 인증서 -->
+        <div class="tab-panel" id="tab-certs">
+          <div class="card" style="margin-bottom:var(--sp-4)">
+            <div class="fw-600" style="margin-bottom:var(--sp-2)">기본 서브도메인</div>
+            <div id="cert-default" class="text-sm"></div>
+          </div>
+          <div class="card">
+            <div class="fw-600" style="margin-bottom:var(--sp-2)">연결된 개인 도메인</div>
+            <div id="cert-custom" class="text-sm text-muted">불러오는 중...</div>
+          </div>
+        </div>
+
+        <!-- 백업 -->
+        <div class="tab-panel" id="tab-backups">
+          <div class="card" style="margin-bottom:var(--sp-6)">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div class="fw-600">백업</div>
+                <div class="text-sm text-muted">전체 사이트(파일+DB) 스냅샷을 생성합니다.</div>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="createBackup()" id="backup-btn">지금 백업</button>
+            </div>
+          </div>
+          <div id="backups-list" style="display:flex;flex-direction:column;gap:var(--sp-3)"></div>
+        </div>
+
+        <!-- 트래픽 -->
+        <div class="tab-panel" id="tab-traffic">
+          <div class="card"><div id="traffic-list" class="text-sm text-muted">불러오는 중...</div></div>
+        </div>
+
+        <!-- 플랜 -->
+        <div class="tab-panel" id="tab-plan">
+          <div class="card">
+            <div class="fw-600" style="margin-bottom:var(--sp-4)">플랜 변경</div>
+            <div class="form-group">
+              <select class="form-input" id="plan-change-select">
+                <option value="light">라이트 — $15/월</option>
+                <option value="standard">스탠다드 — $30/월</option>
+                <option value="smart">스마트 — $49/월</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="changePlan()">플랜 변경 적용</button>
+            <div class="text-xs text-muted" style="margin-top:var(--sp-3)">다음 결제 주기부터 변경된 요금이 청구됩니다.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const hostingId = new URLSearchParams(location.search).get('id');
+let ROOT_DOMAIN = 'cloud-press.co.kr';
+const loadedTabs = new Set();
+
+if (!hostingId) { location.href = '/dashboard/index.html'; }
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${tab}`));
+  if (!loadedTabs.has(tab)) {
+    loadedTabs.add(tab);
+    ({ sites: loadSites, logs: loadLogs, storage: loadStorage, updates: loadUpdates,
+       certs: loadCerts, backups: loadBackups, traffic: loadTraffic }[tab] || (() => {}))();
+  }
+}
+
+async function loadOverview() {
+  const user = await requireAuth(); if (!user) return;
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/overview`);
+  document.getElementById('loading').classList.add('hidden');
+  if (!ok) { toast('호스팅 정보를 불러오지 못했습니다.', 'error'); return; }
+
+  document.getElementById('detail-body').classList.remove('hidden');
+  document.getElementById('page-title').textContent = data.hosting.site_name;
+  document.getElementById('visit-link').href = data.hosting.site_url;
+  document.getElementById('plan-change-select').value = data.hosting.plan_id;
+
+  const sub = data.subscription;
+  const subStatus = sub?.granted_by_admin ? '관리자 무결제 발급' : (sub?.status === 'active' ? '정상 구독 중' : (sub?.status || '없음'));
+
+  document.getElementById('overview-kv').innerHTML = `
+    <div class="kv-row"><span class="text-muted">사이트 URL</span><span class="font-mono">${data.hosting.site_url}</span></div>
+    <div class="kv-row"><span class="text-muted">플랜</span><span>${data.hosting.plan_name} ($${(data.hosting.price_usd_cents/100).toFixed(2)}/월)</span></div>
+    <div class="kv-row"><span class="text-muted">상태</span><span class="badge ${data.hosting.status === 'active' ? 'badge-green' : 'badge-yellow'}">${data.hosting.status}</span></div>
+    <div class="kv-row"><span class="text-muted">언어</span><span>${data.hosting.locale}</span></div>
+    <div class="kv-row"><span class="text-muted">생성일</span><span>${fmtDate(data.hosting.created_at)}</span></div>
+    <div class="kv-row"><span class="text-muted">구독 상태</span><span>${subStatus}</span></div>
+    ${data.versions ? `
+    <div class="kv-row"><span class="text-muted">워드프레스 버전</span><span class="font-mono">${data.versions.wpVersion || '—'}</span></div>
+    <div class="kv-row"><span class="text-muted">PHP-WASM 버전</span><span class="font-mono">${data.versions.phpWasmVersion || '—'}</span></div>
+    ` : ''}
+  `;
+}
+
+async function loadSites() {
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/sites`);
+  if (!ok) return;
+  const sites = data.sites || [];
+  document.getElementById('sites-list').innerHTML = sites.map(s => `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--sp-3)">
+      <div>
+        <div class="fw-600">${s.subdomain}${s.is_primary ? ' <span class="badge badge-blue">기본</span>' : ''}</div>
+        <div class="text-xs text-muted font-mono">${s.site_url}</div>
+      </div>
+      <div style="display:flex;gap:var(--sp-3);align-items:center">
+        <span class="badge ${s.status === 'active' ? 'badge-green' : 'badge-yellow'}">${s.status}</span>
+        <a class="btn btn-ghost btn-sm" href="${s.site_url}" target="_blank">방문</a>
+        ${!s.is_primary ? `<button class="btn btn-ghost btn-sm" onclick="deleteSite('${s.id}')">삭제</button>` : ''}
+      </div>
+    </div>
+  `).join('') || '<div class="text-muted text-sm">사이트가 없습니다.</div>';
+
+  // 도메인 셀렉트 채우기
+  const domRes = await apiFetch(`/hostings/${hostingId}/domains`);
+  const sel = document.getElementById('new-site-domain');
+  if (domRes.ok) {
+    (domRes.data.domains || []).filter(d => d.status === 'active').forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id; opt.textContent = d.domain_name;
+      opt.dataset.domainName = d.domain_name;
+      sel.appendChild(opt);
+    });
+  }
+}
+
+function toggleSubdomainLabel() {
+  const sel = document.getElementById('new-site-domain');
+  const group = document.getElementById('subdomain-label-group');
+  if (sel.value) {
+    group.classList.remove('hidden');
+    document.getElementById('subdomain-domain-suffix').textContent = '.' + sel.selectedOptions[0].dataset.domainName;
+  } else {
+    group.classList.add('hidden');
+  }
+}
+
+async function createSite() {
+  const domainId = document.getElementById('new-site-domain').value;
+  const body = { siteName: document.getElementById('new-site-name').value.trim() };
+  if (domainId) {
+    body.domainId = domainId;
+    body.subdomainLabel = document.getElementById('new-site-label').value.trim();
+  }
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/sites`, { method: 'POST', body: JSON.stringify(body) });
+  if (ok) { toast('사이트가 생성되었습니다.'); document.getElementById('new-site-name').value=''; loadSites(); }
+  else toast(data.error || '생성에 실패했습니다.', 'error');
+}
+
+async function deleteSite(siteRowId) {
+  if (!confirm('이 사이트를 삭제하시겠습니까?')) return;
+  const { ok } = await apiFetch(`/hostings/${hostingId}/sites/${siteRowId}`, { method: 'DELETE' });
+  if (ok) { toast('삭제되었습니다.'); loadSites(); } else toast('삭제에 실패했습니다.', 'error');
+}
+
+async function loadLogs() {
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/logs?limit=200`);
+  if (!ok) return;
+  const logs = data.logs || [];
+  document.getElementById('logs-list').innerHTML = logs.map(l => `
+    <div class="log-line ${l.level === 'error' ? 'error' : ''}">[${fmtDate(l.created_at)}] ${l.level?.toUpperCase() || 'INFO'} — ${l.message || ''}</div>
+  `).join('') || '<div class="text-muted text-sm" style="padding:var(--sp-4)">로그가 없습니다.</div>';
+}
+
+async function loadStorage() {
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/storage`);
+  if (!ok) return;
+  document.getElementById('storage-kv').innerHTML = `
+    <div class="kv-row"><span class="text-muted">사용 중</span><span>${((data.usedBytes||0)/1e6).toFixed(1)} MB</span></div>
+    <div class="kv-row"><span class="text-muted">할당량</span><span>${((data.quotaBytes||0)/1e6).toFixed(0)} MB</span></div>
+    <div class="kv-row"><span class="text-muted">오브젝트 수</span><span>${data.objectCount ?? '—'}</span></div>
+  `;
+}
+
+async function listTables() {
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/db/query`, { method: 'POST', body: JSON.stringify({ action: 'listTables' }) });
+  document.getElementById('db-result').textContent = ok ? JSON.stringify(data, null, 2) : (data.error || '실패');
+}
+
+async function runQuery() {
+  const sql = document.getElementById('sql-input').value.trim();
+  if (!sql) return;
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/db/query`, { method: 'POST', body: JSON.stringify({ action: 'query', sql }) });
+  document.getElementById('db-result').textContent = ok ? JSON.stringify(data, null, 2) : (data.error || '실패');
+}
+
+async function purgeWp() {
+  const { ok } = await apiFetch(`/hostings/${hostingId}/cache/purge-wp`, { method: 'POST' });
+  toast(ok ? '워드프레스 캐시가 초기화되었습니다.' : '실패했습니다.', ok ? 'success' : 'error');
+}
+async function purgeCf() {
+  if (!confirm('연결된 모든 도메인의 Cloudflare 캐시를 전체 초기화합니다. 계속할까요?')) return;
+  const { ok } = await apiFetch(`/hostings/${hostingId}/cache/purge-cloudflare`, { method: 'POST' });
+  toast(ok ? 'Cloudflare 전체 캐시가 초기화되었습니다.' : '실패했습니다.', ok ? 'success' : 'error');
+}
+
+async function loadUpdates() {
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/updates`);
+  if (!ok) { document.getElementById('updates-list').textContent = '불러오지 못했습니다.'; return; }
+  const rows = [
+    { target: 'php_wasm', label: 'PHP-WASM', current: data.phpWasmVersion, latest: data.phpWasmLatest },
+    { target: 'wp_core', label: '워드프레스 코어', current: data.wpVersion, latest: data.wpLatest },
+  ];
+  const plugins = (data.plugins || []).map(p => ({ target: 'plugin', slug: p.slug, label: `플러그인 — ${p.slug}`, current: p.version, latest: p.latestVersion }));
+  const themes = (data.themes || []).map(t => ({ target: 'theme', slug: t.slug, label: `테마 — ${t.slug}`, current: t.version, latest: t.latestVersion }));
+  const all = [...rows, ...plugins, ...themes];
+
+  document.getElementById('updates-list').innerHTML = all.map(r => `
+    <div class="kv-row">
+      <span>${r.label} <span class="text-xs text-muted font-mono">${r.current || '—'}${r.latest && r.latest !== r.current ? ` → ${r.latest}` : ''}</span></span>
+      ${r.latest && r.latest !== r.current
+        ? `<button class="btn btn-primary btn-sm" onclick="applyUpdate('${r.target}', '${r.latest}', '${r.slug || ''}')">업데이트</button>`
+        : '<span class="badge badge-green">최신</span>'}
+    </div>
+  `).join('') || '<div class="text-muted">업데이트 정보를 불러올 수 없습니다.</div>';
+}
+
+async function applyUpdate(target, version, slug) {
+  const { ok } = await apiFetch(`/hostings/${hostingId}/updates`, {
+    method: 'POST',
+    body: JSON.stringify({ target, version, slug: slug || undefined }),
+  });
+  toast(ok ? '업데이트가 적용되었습니다.' : '업데이트에 실패했습니다.', ok ? 'success' : 'error');
+  if (ok) loadUpdates();
+}
+
+async function loadCerts() {
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/certificates`);
+  if (!ok) return;
+  const d = data.defaultSubdomain;
+  document.getElementById('cert-default').innerHTML = `
+    <div class="kv-row"><span class="text-muted">인증기관</span><span>Google Trust Services</span></div>
+    <div class="kv-row"><span class="text-muted">TLS 버전</span><span class="font-mono">${d.tlsVersion}</span></div>
+    <div class="kv-row"><span class="text-muted">상태</span><span class="badge badge-green">${d.status}</span></div>
+  `;
+  const custom = data.customDomains || [];
+  document.getElementById('cert-custom').innerHTML = custom.length ? custom.map(c => `
+    <div class="kv-row">
+      <span>${c.domain_name}</span>
+      <span class="badge ${c.cert_status === 'active' ? 'badge-green' : 'badge-yellow'}">${c.cert_status || '발급 중'} ${c.tls_version ? '· ' + c.tls_version : ''}</span>
+    </div>
+  `).join('') : '연결된 개인 도메인이 없습니다.';
+}
+
+async function createBackup() {
+  const btn = document.getElementById('backup-btn');
+  btn.textContent = '백업 중...'; btn.disabled = true;
+  const { ok } = await apiFetch(`/hostings/${hostingId}/backups`, { method: 'POST' });
+  toast(ok ? '백업이 완료되었습니다.' : '백업에 실패했습니다.', ok ? 'success' : 'error');
+  btn.textContent = '지금 백업'; btn.disabled = false;
+  loadBackups();
+}
+
+async function loadBackups() {
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/backups`);
+  if (!ok) return;
+  const backups = data.backups || [];
+  document.getElementById('backups-list').innerHTML = backups.map(b => `
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--sp-3)">
+      <div>
+        <div class="text-sm font-mono">${b.id}</div>
+        <div class="text-xs text-muted">${fmtDate(b.created_at)} · ${b.size_bytes ? (b.size_bytes/1e6).toFixed(1)+' MB' : '—'}</div>
+      </div>
+      <div style="display:flex;gap:var(--sp-3);align-items:center">
+        <span class="badge ${b.status === 'completed' ? 'badge-green' : b.status === 'failed' ? 'badge-red' : 'badge-yellow'}">${b.status}</span>
+        ${b.status === 'completed' ? `<button class="btn btn-ghost btn-sm" onclick="restoreBackup('${b.id}')">복원</button>` : ''}
+      </div>
+    </div>
+  `).join('') || '<div class="text-muted text-sm">아직 백업이 없습니다.</div>';
+}
+
+async function restoreBackup(backupId) {
+  if (!confirm('이 시점으로 사이트를 복원하시겠습니까? 현재 데이터는 덮어씌워집니다.')) return;
+  const { ok } = await apiFetch(`/hostings/${hostingId}/backups/${backupId}/restore`, { method: 'POST' });
+  toast(ok ? '복원이 완료되었습니다.' : '복원에 실패했습니다.', ok ? 'success' : 'error');
+}
+
+async function loadTraffic() {
+  const { ok, data } = await apiFetch(`/hostings/${hostingId}/traffic`);
+  if (!ok) return;
+  const series = data.series || [];
+  document.getElementById('traffic-list').innerHTML = series.map(s => `
+    <div class="kv-row"><span>${s.date}</span><span>요청 ${s.total}건 <span class="text-muted">(오류 ${s.errors}건)</span></span></div>
+  `).join('') || '표시할 트래픽 데이터가 없습니다.';
+}
+
+async function changePlan() {
+  const planId = document.getElementById('plan-change-select').value;
+  const { ok } = await apiFetch(`/hostings/${hostingId}`, { method: 'PATCH', body: JSON.stringify({ planId }) });
+  toast(ok ? '플랜이 변경되었습니다.' : '플랜 변경에 실패했습니다.', ok ? 'success' : 'error');
+}
+
+loadOverview();
+</script>
+</body>
+</html>
