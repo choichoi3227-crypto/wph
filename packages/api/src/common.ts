@@ -16,6 +16,83 @@ export function uuid(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * 어드민 설정(admin_settings 테이블)에서 값을 읽는다. 관리자가 어드민 페이지에서
+ * Cloudflare 글로벌 API 키 / PayPal 자격증명 등을 등록하면 이 값이 wrangler secret보다 우선한다.
+ * 값이 없으면 wrangler.toml/secret으로 설정된 기본값(fallback)을 사용한다.
+ */
+export async function getAdminSetting(env: Env, key: string): Promise<string | null> {
+  const row = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = ?")
+    .bind(key)
+    .first<{ value: string }>();
+  return row?.value ?? null;
+}
+
+export async function setAdminSetting(env: Env, key: string, value: string): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO admin_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`
+  )
+    .bind(key, value)
+    .run();
+}
+
+export interface CloudflareCreds {
+  apiToken: string; // Global API Key 또는 API Token (Authorization: Bearer로 사용)
+  accountId: string;
+}
+
+/** 어드민이 등록한 Cloudflare 글로벌 API 키가 있으면 그것을, 없으면 wrangler secret 기본값을 반환 */
+export async function getCloudflareCreds(env: Env): Promise<CloudflareCreds> {
+  const [globalKey, accountId] = await Promise.all([
+    getAdminSetting(env, "cf_global_api_key"),
+    getAdminSetting(env, "cf_account_id"),
+  ]);
+  return {
+    apiToken: globalKey ?? env.CF_API_TOKEN,
+    accountId: accountId ?? env.CF_ACCOUNT_ID,
+  };
+}
+
+export interface PayPalCreds {
+  env: "sandbox" | "live";
+  clientId: string;
+  clientSecret: string;
+}
+
+export async function getPayPalCreds(env: Env): Promise<PayPalCreds> {
+  const [clientId, clientSecret, payEnv] = await Promise.all([
+    getAdminSetting(env, "paypal_client_id"),
+    getAdminSetting(env, "paypal_client_secret"),
+    getAdminSetting(env, "paypal_env"),
+  ]);
+  return {
+    clientId: clientId ?? env.PAYPAL_CLIENT_ID,
+    clientSecret: clientSecret ?? env.PAYPAL_CLIENT_SECRET,
+    env: (payEnv as "sandbox" | "live") ?? env.PAYPAL_ENV,
+  };
+}
+
+export async function logActivity(
+  env: Env,
+  hostingId: string,
+  actor: string,
+  action: string,
+  detail?: string
+): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO activity_logs (id, hosting_id, actor, action, detail) VALUES (?, ?, ?, ?, ?)`
+  )
+    .bind(uuid(), hostingId, actor, action, detail ?? null)
+    .run();
+}
+
+export function randomSubdomain(len = 10): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return [...bytes].map((b) => chars[b % chars.length]).join("");
+}
+
 export function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
