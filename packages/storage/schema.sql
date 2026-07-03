@@ -58,3 +58,34 @@ CREATE TABLE IF NOT EXISTS storage_usage (
   object_count INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (site_id, period)
 );
+
+-- ── 사이트별 요청/에러 로그 (호스팅 상세 페이지 "로그" 탭) ─────────────────
+CREATE TABLE IF NOT EXISTS site_logs (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  site_id      TEXT NOT NULL,
+  level        TEXT NOT NULL DEFAULT 'info', -- info | warn | error
+  message      TEXT NOT NULL,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_site_logs_site ON site_logs(site_id, created_at);
+
+-- ── 호스트네임 → siteId 매핑 (site-worker 라우팅 단일 진실 공급원) ────────────
+-- 기본 서브도메인({siteId}.cloud-press.co.kr), 사용자 커스텀 도메인, 멀티사이트(서브사이트)
+-- 모두 이 테이블 하나로 hostname → target_site_id(= WP_DB DO / 스토리지 프리픽스 키) 를 조회한다.
+CREATE TABLE IF NOT EXISTS domain_map (
+  hostname        TEXT PRIMARY KEY,     -- 예: "abc123.cloud-press.co.kr" 또는 "blog.example.com"
+  bucket_site_id  TEXT NOT NULL,        -- 객체 스토리지 버킷(자격증명) 기준 siteId = hosting_id
+  target_site_id  TEXT NOT NULL,        -- WP_DB DO 키 = hosting_id(기본 사이트) 또는 hosting_sites.id(서브사이트)
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ── 사이트 버전 정보 (php-wasm / 워드프레스 코어 / 플러그인·테마) ──────────────
+CREATE TABLE IF NOT EXISTS site_versions (
+  site_id       TEXT PRIMARY KEY,
+  php_wasm_version TEXT NOT NULL DEFAULT '8.2.0',
+  wp_core_version  TEXT NOT NULL DEFAULT '6.5',
+  plugins_json     TEXT NOT NULL DEFAULT '[]', -- [{"slug":"...","version":"..."}]
+  themes_json      TEXT NOT NULL DEFAULT '[]',
+  updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
