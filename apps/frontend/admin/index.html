@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 개요 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+
+  <!-- 사이드바 -->
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press <span class="badge badge-blue" style="margin-left:var(--sp-2);vertical-align:middle">관리자</span></div>
+    <nav class="db-nav">
+      <div class="db-nav-section">관리자</div>
+      <a class="db-nav-link" href="/admin/index.html"><span class="icon">📊</span> 개요</a>
+      <a class="db-nav-link" href="/admin/users.html"><span class="icon">👥</span> 사용자</a>
+      <a class="db-nav-link" href="/admin/hostings.html"><span class="icon">⊞</span> 전체 호스팅</a>
+      <a class="db-nav-link" href="/admin/invoices.html"><span class="icon">🧾</span> 청구/매출</a>
+      <a class="db-nav-link" href="/admin/settings.html"><span class="icon">⚙️</span> 전역 설정</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">↩</span> 일반 대시보드로</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <!-- 메인 -->
+  <main class="db-main">
+    <div class="db-topbar">
+      <div class="db-topbar-title">관리자 개요</div>
+    </div>
+    <div class="db-content">
+
+      <div id="loading" class="text-muted text-sm">불러오는 중...</div>
+
+      <div id="stats-grid" class="hidden" style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--sp-4);margin-bottom:var(--sp-8)">
+        <div class="card">
+          <div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">전체 사용자</div>
+          <div style="font-size:var(--sz-2xl);font-weight:700" id="stat-users">—</div>
+        </div>
+        <div class="card">
+          <div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">활성 호스팅</div>
+          <div style="font-size:var(--sz-2xl);font-weight:700" id="stat-active">—</div>
+        </div>
+        <div class="card">
+          <div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">정지된 호스팅</div>
+          <div style="font-size:var(--sz-2xl);font-weight:700" id="stat-suspended">—</div>
+        </div>
+        <div class="card">
+          <div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">최근 매출 합계</div>
+          <div style="font-size:var(--sz-2xl);font-weight:700" id="stat-revenue">—</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:var(--sp-6)">
+        <div class="fw-600" style="margin-bottom:var(--sp-4)">최근 가입 사용자</div>
+        <div id="recent-users" class="text-sm text-muted">불러오는 중...</div>
+      </div>
+
+      <div class="card">
+        <div class="fw-600" style="margin-bottom:var(--sp-4)">최근 생성된 호스팅</div>
+        <div id="recent-hostings" class="text-sm text-muted">불러오는 중...</div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const STATUS_BADGE = { active: 'badge-green', provisioning: 'badge-yellow', suspended: 'badge-red', deleted: 'badge-red', error: 'badge-red' };
+const STATUS_LABEL = { active:'활성', provisioning:'배포 중', suspended:'정지', deleted:'삭제됨', error:'오류' };
+
+async function load() {
+  const admin = await requireAdmin(); if (!admin) return;
+
+  const [usersRes, hostingsRes, activeRes, suspendedRes, invoicesRes] = await Promise.all([
+    apiFetch('/admin/users?limit=5'),
+    apiFetch('/admin/hostings?limit=5'),
+    apiFetch('/admin/hostings?status=active&limit=200'),
+    apiFetch('/admin/hostings?status=suspended&limit=200'),
+    apiFetch('/admin/invoices?limit=200'),
+  ]);
+
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('stats-grid').classList.remove('hidden');
+  document.getElementById('stats-grid').style.display = 'grid';
+
+  if (usersRes.ok) {
+    document.getElementById('recent-users').innerHTML = (usersRes.data.users || []).map(u => `
+      <div style="display:flex;justify-content:space-between;padding:var(--sp-2) 0;border-bottom:1px solid var(--border)">
+        <span>${u.email} ${u.is_admin ? '<span class="badge badge-blue">admin</span>' : ''}</span>
+        <span class="text-xs text-muted">${fmtDate(u.created_at)}</span>
+      </div>
+    `).join('') || '<div class="text-muted">사용자가 없습니다.</div>';
+  }
+
+  if (activeRes.ok) document.getElementById('stat-active').textContent = (activeRes.data.hostings || []).length;
+  if (suspendedRes.ok) document.getElementById('stat-suspended').textContent = (suspendedRes.data.hostings || []).length;
+
+  // 전체 사용자 수는 목록 API에 개수가 없으므로 넉넉한 limit으로 다시 조회
+  const allUsersRes = await apiFetch('/admin/users?limit=200');
+  if (allUsersRes.ok) document.getElementById('stat-users').textContent = (allUsersRes.data.users || []).length;
+
+  if (invoicesRes.ok) {
+    const paid = (invoicesRes.data.invoices || []).filter(i => i.status === 'paid');
+    const total = paid.reduce((sum, i) => sum + (i.amount_usd_cents || 0), 0);
+    document.getElementById('stat-revenue').textContent = fmtUsd(total);
+  }
+
+  if (hostingsRes.ok) {
+    document.getElementById('recent-hostings').innerHTML = (hostingsRes.data.hostings || []).map(h => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:var(--sp-2) 0;border-bottom:1px solid var(--border)">
+        <span>${h.site_name} <span class="text-xs text-muted font-mono">(${h.owner_email})</span></span>
+        <span class="badge ${STATUS_BADGE[h.status] || 'badge-blue'}">${STATUS_LABEL[h.status] || h.status}</span>
+      </div>
+    `).join('') || '<div class="text-muted">호스팅이 없습니다.</div>';
+  }
+}
+load();
+</script>
+</body>
+</html>
