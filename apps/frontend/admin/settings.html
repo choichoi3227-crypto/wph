@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전역 설정 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press <span class="badge badge-blue" style="margin-left:var(--sp-2);vertical-align:middle">관리자</span></div>
+    <nav class="db-nav">
+      <div class="db-nav-section">관리자</div>
+      <a class="db-nav-link" href="/admin/index.html"><span class="icon">📊</span> 개요</a>
+      <a class="db-nav-link" href="/admin/users.html"><span class="icon">👥</span> 사용자</a>
+      <a class="db-nav-link" href="/admin/hostings.html"><span class="icon">⊞</span> 전체 호스팅</a>
+      <a class="db-nav-link" href="/admin/invoices.html"><span class="icon">🧾</span> 청구/매출</a>
+      <a class="db-nav-link" href="/admin/settings.html"><span class="icon">⚙️</span> 전역 설정</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">↩</span> 일반 대시보드로</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main class="db-main">
+    <div class="db-topbar">
+      <div class="db-topbar-title">전역 설정</div>
+    </div>
+    <div class="db-content" style="max-width:640px">
+
+      <div id="loading" class="text-muted text-sm">불러오는 중...</div>
+
+      <form id="settings-form" class="hidden">
+
+        <div class="card" style="margin-bottom:var(--sp-6)">
+          <div class="fw-600" style="margin-bottom:var(--sp-1)">Cloudflare</div>
+          <div class="text-sm text-muted" style="margin-bottom:var(--sp-4)">호스팅 프로비저닝, DNS, 캐시 초기화, Zone 관리에 사용됩니다.</div>
+
+          <div class="form-group">
+            <label class="form-label" for="cf_global_api_key">Global API Key</label>
+            <input class="form-input font-mono" id="cf_global_api_key" type="password" placeholder="설정된 값이 있으면 마스킹되어 표시됩니다">
+            <div class="form-hint" id="cf_global_api_key-hint"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cf_account_id">Account ID</label>
+            <input class="form-input font-mono" id="cf_account_id" type="text">
+            <div class="form-hint" id="cf_account_id-hint"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cf_account_email">Account Email</label>
+            <input class="form-input" id="cf_account_email" type="email">
+            <div class="form-hint" id="cf_account_email-hint"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:var(--sp-6)">
+          <div class="fw-600" style="margin-bottom:var(--sp-1)">PayPal</div>
+          <div class="text-sm text-muted" style="margin-bottom:var(--sp-4)">결제 및 결제수단(Vault) 등록에 사용됩니다.</div>
+
+          <div class="form-group">
+            <label class="form-label" for="paypal_env">환경</label>
+            <select class="form-input" id="paypal_env">
+              <option value="sandbox">Sandbox (테스트)</option>
+              <option value="live">Live (실제 결제)</option>
+            </select>
+            <div class="form-hint" id="paypal_env-hint"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="paypal_client_id">Client ID</label>
+            <input class="form-input font-mono" id="paypal_client_id" type="text">
+            <div class="form-hint" id="paypal_client_id-hint"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="paypal_client_secret">Client Secret</label>
+            <input class="form-input font-mono" id="paypal_client_secret" type="password" placeholder="설정된 값이 있으면 마스킹되어 표시됩니다">
+            <div class="form-hint" id="paypal_client_secret-hint"></div>
+          </div>
+        </div>
+
+        <div id="save-error" class="alert alert-error hidden" style="margin-bottom:var(--sp-4)"><span id="save-error-text"></span></div>
+        <button type="button" class="btn btn-primary" id="save-btn" onclick="saveSettings()">저장</button>
+      </form>
+
+    </div>
+  </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const KEYS = ['cf_global_api_key', 'cf_account_id', 'cf_account_email', 'paypal_client_id', 'paypal_client_secret', 'paypal_env'];
+
+async function load() {
+  const admin = await requireAdmin(); if (!admin) return;
+
+  const { ok, data } = await apiFetch('/admin/settings');
+  document.getElementById('loading').classList.add('hidden');
+  if (!ok) { toast('설정을 불러오지 못했습니다.', 'error'); return; }
+
+  document.getElementById('settings-form').classList.remove('hidden');
+
+  for (const key of KEYS) {
+    const setting = data.settings?.[key];
+    const hint = document.getElementById(`${key}-hint`);
+    if (setting?.configured) {
+      hint.textContent = `현재 설정됨: ${setting.value}`;
+      // 민감하지 않은 값(계정 ID/이메일/환경)은 필드에 그대로 채워서 바로 편집 가능하게 함
+      if (!['cf_global_api_key', 'paypal_client_secret'].includes(key)) {
+        document.getElementById(key).value = setting.value;
+      }
+    } else {
+      hint.textContent = '설정되지 않음';
+    }
+  }
+}
+
+async function saveSettings() {
+  const btn = document.getElementById('save-btn');
+  const errBox = document.getElementById('save-error');
+  const errText = document.getElementById('save-error-text');
+  errBox.classList.add('hidden');
+  btn.textContent = '저장 중...'; btn.disabled = true;
+
+  const body = {};
+  for (const key of KEYS) {
+    const val = document.getElementById(key).value.trim();
+    if (val) body[key] = val; // 빈 값은 전송하지 않음 (기존 값 유지, 마스킹된 값을 덮어쓰지 않기 위함)
+  }
+
+  if (Object.keys(body).length === 0) {
+    toast('변경된 값이 없습니다.', 'info');
+    btn.textContent = '저장'; btn.disabled = false;
+    return;
+  }
+
+  const { ok, data } = await apiFetch('/admin/settings', { method: 'PATCH', body: JSON.stringify(body) });
+  if (ok) {
+    toast(`저장되었습니다 (${(data.updated || []).length}개 항목).`);
+    // 비밀번호 필드는 값을 비워서 다시 마스킹 상태로 되돌림
+    document.getElementById('cf_global_api_key').value = '';
+    document.getElementById('paypal_client_secret').value = '';
+    load();
+  } else {
+    errText.textContent = data.error || '저장에 실패했습니다.';
+    errBox.classList.remove('hidden');
+  }
+  btn.textContent = '저장'; btn.disabled = false;
+}
+
+load();
+</script>
+</body>
+</html>

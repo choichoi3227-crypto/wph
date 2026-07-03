@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>전체 호스팅 관리 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press <span class="badge badge-blue" style="margin-left:var(--sp-2);vertical-align:middle">관리자</span></div>
+    <nav class="db-nav">
+      <div class="db-nav-section">관리자</div>
+      <a class="db-nav-link" href="/admin/index.html"><span class="icon">📊</span> 개요</a>
+      <a class="db-nav-link" href="/admin/users.html"><span class="icon">👥</span> 사용자</a>
+      <a class="db-nav-link" href="/admin/hostings.html"><span class="icon">⊞</span> 전체 호스팅</a>
+      <a class="db-nav-link" href="/admin/invoices.html"><span class="icon">🧾</span> 청구/매출</a>
+      <a class="db-nav-link" href="/admin/settings.html"><span class="icon">⚙️</span> 전역 설정</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">↩</span> 일반 대시보드로</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main class="db-main">
+    <div class="db-topbar">
+      <div class="db-topbar-title">전체 호스팅</div>
+      <button class="btn btn-primary btn-sm" onclick="openModal('grant-modal')">+ 무결제 호스팅 발급</button>
+    </div>
+    <div class="db-content">
+
+      <div class="card" style="margin-bottom:var(--sp-6)">
+        <div style="display:flex;gap:var(--sp-3);align-items:center;flex-wrap:wrap">
+          <span class="text-sm text-muted">상태 필터:</span>
+          <select class="form-input" id="status-filter" style="max-width:220px" onchange="loadHostings()">
+            <option value="">전체</option>
+            <option value="active">활성</option>
+            <option value="provisioning">배포 중</option>
+            <option value="suspended">정지</option>
+            <option value="error">오류</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="loading" class="text-muted text-sm">불러오는 중...</div>
+      <div id="hosting-cards" class="hidden" style="display:flex;flex-direction:column;gap:var(--sp-4)"></div>
+    </div>
+  </main>
+</div>
+
+<!-- 무결제 호스팅 발급 모달 -->
+<div class="modal-overlay" id="grant-modal">
+  <div class="modal">
+    <div class="modal-title">무결제 호스팅 발급</div>
+    <div class="text-sm text-muted" style="margin-bottom:var(--sp-4)">대상 사용자는 미리 회원가입이 되어 있어야 합니다. 결제 없이 즉시 활성화됩니다.</div>
+
+    <div id="grant-error" class="alert alert-error hidden" style="margin-bottom:var(--sp-4)"><span id="grant-error-text"></span></div>
+
+    <div class="form-group">
+      <label class="form-label" for="grant-email">대상 사용자 이메일</label>
+      <input class="form-input" id="grant-email" type="email" placeholder="user@example.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="grant-name">사이트 이름</label>
+      <input class="form-input" id="grant-name" type="text" placeholder="고객 블로그">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="grant-subdomain">서브도메인</label>
+      <div style="display:flex;align-items:center;gap:var(--sp-2)">
+        <input class="form-input" id="grant-subdomain" type="text" placeholder="client-blog" style="flex:1">
+        <span class="text-muted text-sm" style="white-space:nowrap">.cloud-press.co.kr</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="grant-plan">플랜</label>
+      <select class="form-input" id="grant-plan">
+        <option value="light">라이트</option>
+        <option value="standard" selected>스탠다드</option>
+        <option value="smart">스마트</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-2)">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('grant-modal')">취소</button>
+      <button class="btn btn-primary" style="flex:2" id="grant-btn" onclick="grantHosting()">발급</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const STATUS_BADGE = { active: 'badge-green', provisioning: 'badge-yellow', suspended: 'badge-red', deleted: 'badge-red', error: 'badge-red' };
+const STATUS_LABEL = { active:'활성', provisioning:'배포 중', suspended:'정지', deleted:'삭제됨', error:'오류' };
+
+async function loadHostings() {
+  const admin = await requireAdmin(); if (!admin) return;
+
+  const status = document.getElementById('status-filter').value;
+  const { ok, data } = await apiFetch('/admin/hostings?limit=200' + (status ? '&status=' + status : ''));
+  document.getElementById('loading').classList.add('hidden');
+  if (!ok) { toast('호스팅 목록을 불러오지 못했습니다.', 'error'); return; }
+
+  const cards = document.getElementById('hosting-cards');
+  cards.classList.remove('hidden');
+  cards.style.display = 'flex';
+  const hostings = data.hostings || [];
+
+  if (hostings.length === 0) {
+    cards.innerHTML = `<div class="card text-muted text-center" style="padding:var(--sp-16)">조건에 맞는 호스팅이 없습니다.</div>`;
+    return;
+  }
+
+  cards.innerHTML = hostings.map(h => `
+    <div class="card" style="display:flex;align-items:center;gap:var(--sp-6);flex-wrap:wrap">
+      <div style="flex:1;min-width:220px">
+        <div class="fw-600" style="margin-bottom:var(--sp-1)">${h.site_name}</div>
+        <div class="text-sm text-muted font-mono">${h.site_url || `https://${h.id}.cloud-press.co.kr`}</div>
+        <div class="text-xs text-muted" style="margin-top:var(--sp-1)">소유자: ${h.owner_email}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap">
+        <span class="badge ${STATUS_BADGE[h.status] || 'badge-blue'}">${STATUS_LABEL[h.status] || h.status}</span>
+        <span class="text-xs text-muted">${h.plan_id} 플랜</span>
+        <span class="text-xs text-muted">${fmtDate(h.created_at)}</span>
+        <a class="btn btn-ghost btn-sm" href="/dashboard/hosting.html?id=${h.id}">상세 관리</a>
+        ${h.status === 'suspended'
+          ? `<button class="btn btn-ghost btn-sm" onclick="reactivate('${h.id}')">정지 해제</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="suspend('${h.id}')">정지</button>`
+        }
+        <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="removeHosting('${h.id}')">완전 삭제</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function suspend(id) {
+  if (!confirm('이 호스팅을 정지시키겠습니까? 사이트 접속이 즉시 중단됩니다.')) return;
+  const { ok } = await apiFetch(`/admin/hostings/${id}/suspend`, { method: 'POST' });
+  if (ok) { toast('정지되었습니다.'); loadHostings(); } else toast('실패했습니다.', 'error');
+}
+
+async function reactivate(id) {
+  const { ok } = await apiFetch(`/admin/hostings/${id}/reactivate`, { method: 'POST' });
+  if (ok) { toast('정지가 해제되었습니다.'); loadHostings(); } else toast('실패했습니다.', 'error');
+}
+
+async function removeHosting(id) {
+  if (!confirm(`"${id}" 호스팅을 완전히 삭제하시겠습니까? 스토리지/DB/도메인까지 전부 삭제되며 되돌릴 수 없습니다.`)) return;
+  const { ok } = await apiFetch(`/admin/hostings/${id}`, { method: 'DELETE' });
+  if (ok) { toast('삭제되었습니다.'); loadHostings(); } else toast('삭제에 실패했습니다. (스토리지 정리 실패 가능)', 'error');
+}
+
+async function grantHosting() {
+  const btn = document.getElementById('grant-btn');
+  const errBox = document.getElementById('grant-error');
+  const errText = document.getElementById('grant-error-text');
+  errBox.classList.add('hidden');
+  btn.textContent = '발급 중...'; btn.disabled = true;
+
+  const { ok, data } = await apiFetch('/admin/hostings', {
+    method: 'POST',
+    body: JSON.stringify({
+      targetUserEmail: document.getElementById('grant-email').value.trim(),
+      siteName: document.getElementById('grant-name').value.trim(),
+      subdomain: document.getElementById('grant-subdomain').value.trim(),
+      planId: document.getElementById('grant-plan').value,
+    }),
+  });
+
+  if (ok) {
+    closeModal('grant-modal');
+    toast('호스팅이 무결제로 발급되었습니다.');
+    loadHostings();
+  } else {
+    errText.textContent = data.error || '발급에 실패했습니다.';
+    errBox.classList.remove('hidden');
+  }
+  btn.textContent = '발급'; btn.disabled = false;
+}
+
+loadHostings();
+</script>
+</body>
+</html>

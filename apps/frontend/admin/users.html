@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사용자 관리 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press <span class="badge badge-blue" style="margin-left:var(--sp-2);vertical-align:middle">관리자</span></div>
+    <nav class="db-nav">
+      <div class="db-nav-section">관리자</div>
+      <a class="db-nav-link" href="/admin/index.html"><span class="icon">📊</span> 개요</a>
+      <a class="db-nav-link" href="/admin/users.html"><span class="icon">👥</span> 사용자</a>
+      <a class="db-nav-link" href="/admin/hostings.html"><span class="icon">⊞</span> 전체 호스팅</a>
+      <a class="db-nav-link" href="/admin/invoices.html"><span class="icon">🧾</span> 청구/매출</a>
+      <a class="db-nav-link" href="/admin/settings.html"><span class="icon">⚙️</span> 전역 설정</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">↩</span> 일반 대시보드로</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main class="db-main">
+    <div class="db-topbar">
+      <div class="db-topbar-title">사용자 관리</div>
+    </div>
+    <div class="db-content">
+
+      <div class="card" style="margin-bottom:var(--sp-6)">
+        <div style="display:flex;gap:var(--sp-3)">
+          <input class="form-input" id="search-q" placeholder="이메일로 검색" style="flex:1">
+          <button class="btn btn-primary" onclick="loadUsers()">검색</button>
+        </div>
+      </div>
+
+      <div id="loading" class="text-muted text-sm">불러오는 중...</div>
+      <div id="user-table" class="hidden card" style="padding:0;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);text-align:left">
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">이메일</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">이름</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">가입일</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">권한</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">작업</th>
+            </tr>
+          </thead>
+          <tbody id="user-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+let currentAdminId = null;
+
+async function loadUsers() {
+  const admin = await requireAdmin(); if (!admin) return;
+  currentAdminId = admin.id;
+
+  const q = document.getElementById('search-q').value.trim();
+  const { ok, data } = await apiFetch('/admin/users?limit=200' + (q ? '&q=' + encodeURIComponent(q) : ''));
+  document.getElementById('loading').classList.add('hidden');
+  if (!ok) { toast('사용자 목록을 불러오지 못했습니다.', 'error'); return; }
+
+  document.getElementById('user-table').classList.remove('hidden');
+  const rows = document.getElementById('user-rows');
+  const users = data.users || [];
+
+  if (users.length === 0) {
+    rows.innerHTML = `<tr><td colspan="5" style="padding:var(--sp-8);text-align:center" class="text-muted">일치하는 사용자가 없습니다.</td></tr>`;
+    return;
+  }
+
+  rows.innerHTML = users.map(u => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:var(--sp-4)" class="font-mono text-sm">${u.email}</td>
+      <td style="padding:var(--sp-4)" class="text-sm">${u.name || '—'}</td>
+      <td style="padding:var(--sp-4)" class="text-xs text-muted">${fmtDate(u.created_at)}</td>
+      <td style="padding:var(--sp-4)">
+        <span class="badge ${u.is_admin ? 'badge-blue' : 'badge-green'}">${u.is_admin ? '관리자' : '일반'}</span>
+      </td>
+      <td style="padding:var(--sp-4)">
+        ${u.id === currentAdminId
+          ? '<span class="text-xs text-muted">본인 계정</span>'
+          : `<button class="btn btn-ghost btn-sm" onclick="toggleRole('${u.id}', ${u.is_admin ? 'false' : 'true'})">${u.is_admin ? '관리자 해제' : '관리자로 지정'}</button>`
+        }
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function toggleRole(userId, makeAdmin) {
+  if (!confirm(makeAdmin ? '이 사용자를 관리자로 지정하시겠습니까?' : '이 사용자의 관리자 권한을 해제하시겠습니까?')) return;
+  const { ok } = await apiFetch(`/admin/users/${userId}/role`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isAdmin: makeAdmin }),
+  });
+  if (ok) { toast('권한이 변경되었습니다.'); loadUsers(); }
+  else toast('권한 변경에 실패했습니다.', 'error');
+}
+
+loadUsers();
+</script>
+</body>
+</html>

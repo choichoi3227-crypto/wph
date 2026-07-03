@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>청구/매출 — CloudPress Bridge</title>
+<link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="db-layout">
+
+  <aside class="db-sidebar">
+    <div class="db-sidebar-logo"><span>Cloud</span>Press <span class="badge badge-blue" style="margin-left:var(--sp-2);vertical-align:middle">관리자</span></div>
+    <nav class="db-nav">
+      <div class="db-nav-section">관리자</div>
+      <a class="db-nav-link" href="/admin/index.html"><span class="icon">📊</span> 개요</a>
+      <a class="db-nav-link" href="/admin/users.html"><span class="icon">👥</span> 사용자</a>
+      <a class="db-nav-link" href="/admin/hostings.html"><span class="icon">⊞</span> 전체 호스팅</a>
+      <a class="db-nav-link" href="/admin/invoices.html"><span class="icon">🧾</span> 청구/매출</a>
+      <a class="db-nav-link" href="/admin/settings.html"><span class="icon">⚙️</span> 전역 설정</a>
+      <div class="db-nav-section">계정</div>
+      <a class="db-nav-link" href="/dashboard/index.html"><span class="icon">↩</span> 일반 대시보드로</a>
+    </nav>
+    <div style="padding:var(--sp-6);border-top:1px solid var(--border)">
+      <button class="btn btn-ghost btn-sm w-full" onclick="signOut()">로그아웃</button>
+    </div>
+  </aside>
+
+  <main class="db-main">
+    <div class="db-topbar">
+      <div class="db-topbar-title">청구 / 매출</div>
+    </div>
+    <div class="db-content">
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sp-4);margin-bottom:var(--sp-6)">
+        <div class="card">
+          <div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">결제 완료 합계</div>
+          <div style="font-size:var(--sz-2xl);font-weight:700" id="stat-paid">—</div>
+        </div>
+        <div class="card">
+          <div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">대기 중인 청구</div>
+          <div style="font-size:var(--sz-2xl);font-weight:700" id="stat-pending">—</div>
+        </div>
+        <div class="card">
+          <div class="text-xs text-muted" style="margin-bottom:var(--sp-2)">실패한 청구</div>
+          <div style="font-size:var(--sz-2xl);font-weight:700" id="stat-failed">—</div>
+        </div>
+      </div>
+
+      <div id="loading" class="text-muted text-sm">불러오는 중...</div>
+      <div id="invoice-table" class="hidden card" style="padding:0;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);text-align:left">
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">인보이스 ID</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">호스팅</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">금액</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">상태</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">발행일</th>
+              <th style="padding:var(--sp-4)" class="text-xs text-muted">결제일</th>
+            </tr>
+          </thead>
+          <tbody id="invoice-rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/js/common.js"></script>
+<script>
+const STATUS_BADGE = { paid: 'badge-green', pending: 'badge-yellow', failed: 'badge-red', refunded: 'badge-red' };
+const STATUS_LABEL = { paid: '결제완료', pending: '대기', failed: '실패', refunded: '환불' };
+
+async function load() {
+  const admin = await requireAdmin(); if (!admin) return;
+
+  const { ok, data } = await apiFetch('/admin/invoices?limit=200');
+  document.getElementById('loading').classList.add('hidden');
+  if (!ok) { toast('청구 내역을 불러오지 못했습니다.', 'error'); return; }
+
+  const invoices = data.invoices || [];
+
+  const paid = invoices.filter(i => i.status === 'paid');
+  const pending = invoices.filter(i => i.status === 'pending');
+  const failed = invoices.filter(i => i.status === 'failed');
+  document.getElementById('stat-paid').textContent = fmtUsd(paid.reduce((s, i) => s + (i.amount_usd_cents || 0), 0));
+  document.getElementById('stat-pending').textContent = pending.length;
+  document.getElementById('stat-failed').textContent = failed.length;
+
+  document.getElementById('invoice-table').classList.remove('hidden');
+  const rows = document.getElementById('invoice-rows');
+
+  if (invoices.length === 0) {
+    rows.innerHTML = `<tr><td colspan="6" style="padding:var(--sp-8);text-align:center" class="text-muted">청구 내역이 없습니다.</td></tr>`;
+    return;
+  }
+
+  rows.innerHTML = invoices.map(i => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:var(--sp-4)" class="font-mono text-xs">${i.id}</td>
+      <td style="padding:var(--sp-4)" class="text-sm">${i.hosting_id}</td>
+      <td style="padding:var(--sp-4)" class="text-sm fw-600">${fmtUsd(i.amount_usd_cents)}</td>
+      <td style="padding:var(--sp-4)"><span class="badge ${STATUS_BADGE[i.status] || 'badge-blue'}">${STATUS_LABEL[i.status] || i.status}</span></td>
+      <td style="padding:var(--sp-4)" class="text-xs text-muted">${fmtDate(i.issued_at)}</td>
+      <td style="padding:var(--sp-4)" class="text-xs text-muted">${fmtDate(i.paid_at)}</td>
+    </tr>
+  `).join('');
+}
+load();
+</script>
+</body>
+</html>
