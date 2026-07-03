@@ -259,6 +259,12 @@ export async function siteExists(db: D1Database, siteId: string): Promise<boolea
   return !!row;
 }
 
+/** 호스팅 완전 삭제 시 사이트 메타 행 자체를 제거한다 (objects/usage는 별도로 정리됨) */
+export async function siteDelete(db: D1Database, siteId: string): Promise<void> {
+  await db.prepare("DELETE FROM sites WHERE site_id = ?").bind(siteId).run();
+  await db.prepare("DELETE FROM storage_usage WHERE site_id = ?").bind(siteId).run();
+}
+
 export async function siteUsage(
   db: D1Database,
   siteId: string
