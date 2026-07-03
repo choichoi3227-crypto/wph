@@ -38,8 +38,10 @@
     <a class="nav-link" href="/products/wordpress-hosting.html">호스팅</a>
     <a class="nav-link" href="/products/dns.html">DNS</a>
     <a class="nav-link" href="/about.html">소개</a>
-    <a class="btn btn-ghost btn-sm" href="/sign-in.html">로그인</a>
-    <a class="btn btn-primary btn-sm" href="/sign-up.html">무료 시작</a>
+    <div id="nav-auth" class="nav-auth-slot">
+      <a class="btn btn-ghost btn-sm" href="/sign-in.html">로그인</a>
+      <a class="btn btn-primary btn-sm" href="/sign-up.html">무료 시작</a>
+    </div>
   </div>
 </nav>
 
@@ -159,7 +161,7 @@
           <li>자체 스토리지 포함</li>
           <li>WordPress 자동 설치</li>
         </ul>
-        <a class="btn btn-ghost w-full" href="/sign-up.html?plan=light">시작하기</a>
+        <a class="btn btn-ghost w-full" href="/sign-up.html?plan=light" onclick="event.preventDefault(); goToPurchase('light')">시작하기</a>
       </div>
 
       <div class="pricing-card featured">
@@ -173,7 +175,7 @@
           <li>DB 직접 접근</li>
           <li>우선 지원</li>
         </ul>
-        <a class="btn btn-primary w-full" href="/sign-up.html?plan=standard">시작하기</a>
+        <a class="btn btn-primary w-full" href="/sign-up.html?plan=standard" onclick="event.preventDefault(); goToPurchase('standard')">시작하기</a>
       </div>
 
       <div class="pricing-card">
@@ -187,7 +189,7 @@
           <li>멀티 도메인</li>
           <li>전담 기술 지원</li>
         </ul>
-        <a class="btn btn-ghost w-full" href="/sign-up.html?plan=smart">시작하기</a>
+        <a class="btn btn-ghost w-full" href="/sign-up.html?plan=smart" onclick="event.preventDefault(); goToPurchase('smart')">시작하기</a>
       </div>
 
     </div>
