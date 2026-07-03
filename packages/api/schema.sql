@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   plan_id TEXT NOT NULL REFERENCES plans(id),
   status TEXT NOT NULL DEFAULT 'pending', -- pending | active | cancelled | suspended
   current_period_end TEXT,
+  granted_by_admin INTEGER NOT NULL DEFAULT 0, -- 1이면 관리자가 결제 없이 발급 (청구 대상 아님)
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -104,3 +105,77 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ── 우선순위 1 추가: 멀티사이트 (하나의 호스팅 = 인프라, 그 안에 여러 사이트) ──────
+CREATE TABLE IF NOT EXISTS hosting_sites (
+  id TEXT PRIMARY KEY,                  -- uuid
+  hosting_id TEXT NOT NULL REFERENCES hostings(id),
+  subdomain TEXT NOT NULL UNIQUE,       -- "{random}.cloud-press.co.kr" 전체 호스트네임
+  domain_id TEXT REFERENCES domains(id),-- NULL = 기본 cloud-press.co.kr 서브도메인 / 값 있음 = 사용자 개인 도메인의 서브도메인
+  site_url TEXT NOT NULL,
+  is_primary INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'provisioning', -- provisioning | active | error | deleted
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_hosting_sites_hosting ON hosting_sites(hosting_id);
+
+-- ── 인증서 상태 (도메인당 1개, Google Trust Services 기반 자동 발급 추적) ─────────
+CREATE TABLE IF NOT EXISTS certificates (
+  id TEXT PRIMARY KEY,
+  domain_id TEXT NOT NULL REFERENCES domains(id),
+  cert_authority TEXT NOT NULL DEFAULT 'google_trust',
+  tls_version TEXT NOT NULL DEFAULT 'TLSv1.3', -- 항상 최신 TLS만 허용
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | active | expired | error
+  issued_at TEXT,
+  expires_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_certificates_domain ON certificates(domain_id);
+
+-- ── 백업 ────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS backups (
+  id TEXT PRIMARY KEY,
+  hosting_id TEXT NOT NULL REFERENCES hostings(id),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | completed | failed | restoring
+  size_bytes INTEGER,
+  storage_key TEXT,                     -- storage 워커 내 백업 아카이브 오브젝트 키
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_backups_hosting ON backups(hosting_id);
+
+-- ── 활동 로그 (호스팅 상세 페이지의 "로그" 탭용) ───────────────────────────────
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id TEXT PRIMARY KEY,
+  hosting_id TEXT NOT NULL,
+  actor TEXT,                           -- user id 또는 'system' / 'admin'
+  action TEXT NOT NULL,                 -- 예: hosting.created, cache.purged, plan.updated
+  detail TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_logs_hosting ON activity_logs(hosting_id, created_at);
+
+-- ── 어드민 전역 설정 (Cloudflare 글로벌 API 키 등 런타임 설정) ───────────────────
+-- 주의: value는 배포 환경에서 반드시 암호화하거나 최소한 D1 접근을 관리자 API로만 제한할 것.
+CREATE TABLE IF NOT EXISTS admin_settings (
+  key TEXT PRIMARY KEY,                 -- cf_global_api_key | cf_account_email | cf_account_id | paypal_client_id | paypal_client_secret | paypal_env
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- ── 등록된 결제 수단 (PayPal Vault) ────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS payment_methods (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  paypal_payment_token_id TEXT NOT NULL, -- PayPal Vault v3 payment-tokens id
+  payer_email TEXT,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_payment_methods_user ON payment_methods(user_id);
+
