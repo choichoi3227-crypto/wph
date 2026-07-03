@@ -22,7 +22,7 @@ class_name = "PhpRuntimeDO"
 
 [[migrations]]
 tag = "v1"
-new_classes = ["PhpRuntimeDO"]
+new_sqlite_classes = ["PhpRuntimeDO"]
 
 [vars]
 STORAGE_BASE_URL = "https://storage.cloud-press.co.kr"
