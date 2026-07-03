@@ -52,6 +52,11 @@ export async function authenticate(request: Request, env: Env): Promise<AuthedUs
   return { id: row.id, email: row.email, isAdmin: !!row.is_admin };
 }
 
+/** 어드민 전용 라우트 가드. 어드민이 아니면 null을 반환(호출부에서 403 처리). */
+export function requireAdmin(user: AuthedUser): boolean {
+  return user.isAdmin;
+}
+
 export function sessionCookie(token: string): string {
   return `cp_session=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_TTL_SECONDS}`;
 }
