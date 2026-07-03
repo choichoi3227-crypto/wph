@@ -55,28 +55,56 @@ export default {
       });
     }
 
-    const siteId = extractSiteId(url.hostname, env.ROOT_ZONE);
-    if (!siteId) {
-      return new Response("Not Found — invalid host", { status: 404 });
+    // domain_map(커스텀 도메인 + 멀티사이트 + 기본 서브도메인 통합 매핑)을 우선 조회하고,
+    // 아직 매핑이 없는(마이그레이션 이전) 기본 서브도메인은 호스트네임 규칙으로 폴백한다.
+    const resolved = await resolveHost(env, url.hostname);
+    if (!resolved) {
+      return new Response("Not Found — unknown host", { status: 404 });
     }
-
-    // 사이트 존재 여부 확인 (삭제/미등록 사이트로의 요청 차단)
-    const exists = await siteExists(env, siteId);
-    if (!exists) {
-      return new Response("Not Found — unknown site", { status: 404 });
-    }
+    const { bucketSiteId, targetSiteId } = resolved;
 
     const ext = path.split(".").pop()?.toLowerCase() ?? "";
 
-    // ── 정적 파일 → STORAGE_WORKER 직접 서빙 ──────────────────────────
+    // ── 정적 파일 → STORAGE_WORKER 직접 서빙 (객체는 항상 hosting 단위 버킷에 보관) ──
     if (STATIC_EXTS.has(ext)) {
-      return serveStatic(env, siteId, path, ext);
+      return serveStatic(env, bucketSiteId, path, ext);
     }
 
-    // ── PHP / WP 퍼머링크 → PhpRuntimeDO ─────────────────────────────
-    return servePhp(request, env, siteId);
+    // ── PHP / WP 퍼머링크 → PhpRuntimeDO (WP DB는 사이트 단위로 격리) ───────────
+    return servePhp(request, env, targetSiteId);
   },
 };
+
+interface ResolvedHost {
+  bucketSiteId: string;
+  targetSiteId: string;
+}
+
+async function resolveHost(env: Env, hostname: string): Promise<ResolvedHost | null> {
+  const mapped = await resolveDomainMap(env, hostname);
+  if (mapped) return mapped;
+
+  // 폴백: domain_map에 아직 등록되지 않은 기본 "{siteId}.cloud-press.co.kr" 형태
+  const siteId = extractSiteId(hostname, env.ROOT_ZONE);
+  if (!siteId) return null;
+  const exists = await siteExists(env, siteId);
+  if (!exists) return null;
+  return { bucketSiteId: siteId, targetSiteId: siteId };
+}
+
+async function resolveDomainMap(env: Env, hostname: string): Promise<ResolvedHost | null> {
+  const res = await env.STORAGE_WORKER.fetch(
+    `${env.STORAGE_BASE_URL}/internal/domain-map/resolve?hostname=${encodeURIComponent(hostname.toLowerCase())}`,
+    {
+      headers: { "x-internal-secret": env.INTERNAL_SHARED_SECRET },
+      cf: { cacheTtl: 30, cacheEverything: true },
+    }
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { found: boolean; bucketSiteId?: string; targetSiteId?: string };
+  if (!data.found || !data.bucketSiteId || !data.targetSiteId) return null;
+  return { bucketSiteId: data.bucketSiteId, targetSiteId: data.targetSiteId };
+}
 
 // ── siteId 파싱 ──────────────────────────────────────────────────────────
 
