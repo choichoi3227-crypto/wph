@@ -6,9 +6,7 @@
     "directory": ".",
     "binding": "ASSETS",
     "not_found_handling": "404-page"
-  }
-}
-{
+  },
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,
